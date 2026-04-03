@@ -1,12 +1,16 @@
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { FileUp, FileText, Trash2, File, Plus, X } from 'lucide-react'
-import type { Document } from '../types'
-import useDatabase, { DEFAULT_DATA } from '../hooks/useDatabase'
+import type { Document, UserData } from '../types'
 
-const DocViewer = ({ user }: { user: string }) => {
-  const { data, setData, loading } = useDatabase(user, DEFAULT_DATA)
+interface DocViewerProps {
+  user: string
+  data: UserData
+  setData: (d: UserData) => void
+  loading: boolean
+}
 
+const DocViewer = ({ data, setData, loading }: DocViewerProps) => {
   const [activeDocId, setActiveDocId] = useState<string | null>(null)
   const [isAddingDoc, setIsAddingDoc] = useState(false)
   const [newDocContent, setNewDocContent] = useState('')
@@ -55,25 +59,25 @@ const DocViewer = ({ user }: { user: string }) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Documents</h3>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button 
+            <button
               onClick={() => setIsAddingDoc(true)}
-              className="btn-primary" 
+              className="btn-primary"
               style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', background: 'var(--secondary)' }}
             >
               <Plus size={16} /> Insert MD
             </button>
-            <button 
+            <button
               onClick={() => fileInputRef.current?.click()}
-              className="btn-primary" 
+              className="btn-primary"
               style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}
             >
               <FileUp size={16} /> Upload
             </button>
           </div>
-          <input 
-            type="file" 
-            accept=".md" 
-            ref={fileInputRef} 
+          <input
+            type="file"
+            accept=".md"
+            ref={fileInputRef}
             onChange={(e) => {
               const file = e.target.files?.[0]
               if (!file) return
@@ -85,8 +89,8 @@ const DocViewer = ({ user }: { user: string }) => {
                 setActiveDocId(newDoc.id)
               }
               reader.readAsText(file)
-            }} 
-            style={{ display: 'none' }} 
+            }}
+            style={{ display: 'none' }}
           />
         </div>
 
@@ -96,15 +100,15 @@ const DocViewer = ({ user }: { user: string }) => {
               <h4 style={{ margin: 0, fontSize: '0.9rem' }}>Insert Markdown</h4>
               <X size={18} onClick={() => setIsAddingDoc(false)} style={{ cursor: 'pointer', opacity: 0.6 }} />
             </div>
-            <input 
-              type="text" 
-              placeholder="Document Title" 
+            <input
+              type="text"
+              placeholder="Document Title"
               value={newDocName}
               onChange={(e) => setNewDocName(e.target.value)}
               style={{ padding: '0.6rem', borderRadius: '0.6rem', border: 'var(--border-glass)', background: 'rgba(0,0,0,0.2)', color: 'white' }}
             />
-            <textarea 
-              placeholder="Paste Markdown here..." 
+            <textarea
+              placeholder="Paste Markdown here..."
               value={newDocContent}
               onChange={(e) => setNewDocContent(e.target.value)}
               style={{ padding: '0.6rem', borderRadius: '0.6rem', border: 'var(--border-glass)', background: 'rgba(0,0,0,0.2)', color: 'white', minHeight: '100px', resize: 'vertical' }}
@@ -118,7 +122,7 @@ const DocViewer = ({ user }: { user: string }) => {
         {/* Horizontal Tabs */}
         <div style={{ display: 'flex', gap: '0.8rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
           {data.documents.map(doc => (
-            <div 
+            <div
               key={doc.id}
               onClick={() => setActiveDocId(doc.id)}
               style={{
@@ -139,10 +143,10 @@ const DocViewer = ({ user }: { user: string }) => {
             >
               <FileText size={14} />
               {doc.name}
-              <Trash2 
-                size={14} 
+              <Trash2
+                size={14}
                 onClick={(e) => deleteDoc(doc.id, e)}
-                style={{ marginLeft: '0.5rem', opacity: 0.6 }} 
+                style={{ marginLeft: '0.5rem', opacity: 0.6 }}
               />
             </div>
           ))}

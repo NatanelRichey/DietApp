@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { LayoutDashboard, Scale, Utensils, Files, Clock, Calendar } from 'lucide-react'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -9,19 +9,24 @@ import DocViewer from './components/DocViewer'
 import Login from './components/Login'
 import BugReporter from './components/BugReporter'
 import BugAdmin from './components/BugAdmin'
-import { useRef } from 'react'
+import useDatabase, { DEFAULT_DATA } from './hooks/useDatabase'
+
+const DOUBLE_TAP_MS = 300
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [currentTime, setCurrentTime] = useState(new Date())
   const [user, setUser] = useState<string | null>(sessionStorage.getItem('diet-app-user'))
-  
-  // Bug Reporting State
+
+  // Single shared database instance — all tabs read/write the same state
+  const { data, setData, loading } = useDatabase(user, DEFAULT_DATA)
+
   const [isBugReporterOpen, setIsBugReporterOpen] = useState(false)
   const [isBugAdminOpen, setIsBugAdminOpen] = useState(false)
-  const [clickCount, setClickCount] = useState(0)
-  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Double-tap tracking for header gestures
+  const lastLogoTapRef = useRef(0)
+  const lastClockTapRef = useRef(0)
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000)
@@ -33,26 +38,43 @@ const App = () => {
     sessionStorage.setItem('diet-app-user', username)
   }
 
-  const handleLogout = () => {
-    setUser(null)
-    sessionStorage.removeItem('diet-app-user')
+  const handleLogoTap = () => {
+    const now = Date.now()
+    if (now - lastLogoTapRef.current < DOUBLE_TAP_MS) {
+      setIsBugReporterOpen(true)
+      lastLogoTapRef.current = 0
+    } else {
+      lastLogoTapRef.current = now
+    }
+  }
+
+  const handleClockTap = () => {
+    const now = Date.now()
+    if (now - lastClockTapRef.current < DOUBLE_TAP_MS) {
+      setIsBugAdminOpen(true)
+      lastClockTapRef.current = 0
+    } else {
+      lastClockTapRef.current = now
+    }
   }
 
   if (!user) return <Login onLogin={handleLogin} />
 
+  const tabProps = { data, setData, loading }
+
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard': return <Dashboard user={user} />
-      case 'weight':    return <WeightTracker user={user} />
-      case 'planner':   return <MealPlanner user={user} />
-      case 'docs':      return <DocViewer user={user} />
+      case 'dashboard': return <Dashboard user={user} {...tabProps} />
+      case 'weight':    return <WeightTracker user={user} {...tabProps} />
+      case 'planner':   return <MealPlanner user={user} {...tabProps} />
+      case 'docs':      return <DocViewer user={user} {...tabProps} />
       default:          return null
     }
   }
 
   return (
     <div className="app-container">
-      {/* Header — fixed height, no scroll */}
+      {/* Header */}
       <header style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -60,20 +82,26 @@ const App = () => {
         padding: '0.8rem 1rem 0.4rem',
         flexShrink: 0
       }}>
-        <div onClick={handleLogout} style={{ cursor: 'pointer' }}>
+        {/* Double-tap → bug reporter */}
+        <div onClick={handleLogoTap} style={{ cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}>
           <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }} className="text-gradient">DietApp</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
             <Calendar size={12} />
             {format(currentTime, 'EEE, d MMM')} · {user}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '1.1rem' }}>
+
+        {/* Double-tap → bug admin */}
+        <div
+          onClick={handleClockTap}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '1.1rem', cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}
+        >
           <Clock size={15} color="var(--secondary)" />
           {format(currentTime, 'HH:mm')}
         </div>
       </header>
 
-      {/* Scrollable main — fills remaining height */}
+      {/* Scrollable main */}
       <main className="page-scroll" style={{ paddingBottom: '5.5rem' }}>
         <AnimatePresence mode="wait">
           <motion.div
@@ -88,7 +116,7 @@ const App = () => {
         </AnimatePresence>
       </main>
 
-      {/* Bottom Nav — fixed, outside scroll area */}
+      {/* Bottom Nav */}
       <nav className="glass" style={{
         position: 'fixed',
         bottom: '0.75rem',
@@ -110,42 +138,7 @@ const App = () => {
         ].map(({ tab, icon, label }) => (
           <button
             key={tab}
-            onClick={() => {
-              if (tab === 'dashboard') {
-                setClickCount(prev => prev + 1)
-                if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
-                clickTimerRef.current = setTimeout(() => setClickCount(0), 500)
-                
-                if (clickCount + 1 === 3) {
-                  setIsBugReporterOpen(true)
-                  setClickCount(0)
-                }
-              }
-              setActiveTab(tab)
-            }}
-            onMouseDown={() => {
-              if (tab === 'dashboard') {
-                longPressTimerRef.current = setTimeout(() => {
-                  setIsBugAdminOpen(true)
-                }, 2000)
-              }
-            }}
-            onMouseUp={() => {
-              if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
-            }}
-            onMouseLeave={() => {
-              if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
-            }}
-            onTouchStart={() => {
-              if (tab === 'dashboard') {
-                longPressTimerRef.current = setTimeout(() => {
-                  setIsBugAdminOpen(true)
-                }, 2000)
-              }
-            }}
-            onTouchEnd={() => {
-              if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
-            }}
+            onClick={() => setActiveTab(tab)}
             style={{
               background: 'none',
               border: 'none',
@@ -170,13 +163,12 @@ const App = () => {
         ))}
       </nav>
 
-      {/* Bug Reporting UI */}
-      <BugReporter 
-        isOpen={isBugReporterOpen} 
-        onClose={() => setIsBugReporterOpen(false)} 
-        user={user || 'Guest'} 
+      <BugReporter
+        isOpen={isBugReporterOpen}
+        onClose={() => setIsBugReporterOpen(false)}
+        user={user || 'Guest'}
       />
-      
+
       {isBugAdminOpen && (
         <BugAdmin onClose={() => setIsBugAdminOpen(false)} />
       )}

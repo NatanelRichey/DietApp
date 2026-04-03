@@ -2,14 +2,12 @@ import { useState, useRef, useEffect } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Plus, History, Scale, Trash2 } from 'lucide-react'
 import { format, startOfWeek, startOfMonth } from 'date-fns'
-import type { WeightEntry } from '../types'
-import useDatabase from '../hooks/useDatabase'
-import { DEFAULT_DATA } from '../hooks/useDatabase'
+import type { WeightEntry, UserData } from '../types'
 
 // Ruler range: 30–200 kg in 0.1 increments = 1700 ticks
 const MIN_KG = 30
 const MAX_KG = 200
-const TICK_PX = 10          // pixels per tick (0.1 kg)
+const TICK_PX = 10
 const DEFAULT_KG = 70
 
 function kgToScroll(kg: number) {
@@ -19,8 +17,14 @@ function scrollToKg(px: number) {
   return Math.round((MIN_KG + px / TICK_PX / 10) * 10) / 10
 }
 
-const WeightTracker = ({ user }: { user: string }) => {
-  const { data, setData, loading } = useDatabase(user, DEFAULT_DATA)
+interface WeightTrackerProps {
+  user: string
+  data: UserData
+  setData: (d: UserData) => void
+  loading: boolean
+}
+
+const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
   const [currentWeight, setCurrentWeight] = useState(DEFAULT_KG)
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day')
   const [historyOpen, setHistoryOpen] = useState(true)
@@ -29,14 +33,13 @@ const WeightTracker = ({ user }: { user: string }) => {
 
   const snapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // On first load, snap ruler to last logged weight
   useEffect(() => {
     if (!loading && !initialisedRef.current && rulerRef.current) {
       initialisedRef.current = true
       const lastWeight = data.weightHistory?.length
         ? data.weightHistory[data.weightHistory.length - 1].weight
         : DEFAULT_KG
-      const clamped = Math.min(Math.max(Math.round(lastWeight * 2) / 2, MIN_KG), MAX_KG)
+      const clamped = Math.min(Math.max(Math.round(lastWeight * 10) / 10, MIN_KG), MAX_KG)
       setCurrentWeight(clamped)
       rulerRef.current.scrollLeft = kgToScroll(clamped)
     }
@@ -44,17 +47,15 @@ const WeightTracker = ({ user }: { user: string }) => {
 
   const snapToNearest = (scrollLeft: number, el: HTMLDivElement) => {
     const raw = scrollToKg(scrollLeft)
-    const snapped = Math.min(Math.max(Math.round(raw * 2) / 2, MIN_KG), MAX_KG)
+    const snapped = Math.min(Math.max(Math.round(raw * 10) / 10, MIN_KG), MAX_KG)
     setCurrentWeight(snapped)
     el.scrollLeft = kgToScroll(snapped)
   }
 
   const handleRulerScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    // Update live display without snapping yet
     const raw = scrollToKg(e.currentTarget.scrollLeft)
-    setCurrentWeight(Math.min(Math.max(Math.round(raw * 2) / 2, MIN_KG), MAX_KG))
+    setCurrentWeight(Math.min(Math.max(Math.round(raw * 10) / 10, MIN_KG), MAX_KG))
 
-    // Snap after scroll stops
     const el = e.currentTarget
     if (snapTimeoutRef.current) clearTimeout(snapTimeoutRef.current)
     snapTimeoutRef.current = setTimeout(() => snapToNearest(el.scrollLeft, el), 150)
@@ -80,7 +81,7 @@ const WeightTracker = ({ user }: { user: string }) => {
     return filtered.map(e => ({ date: format(new Date(e.date), viewMode === 'day' ? 'HH:mm' : 'MMM d'), weight: e.weight }))
   }
 
-  const totalTicks = (MAX_KG - MIN_KG) * 10 + 1  // 1701
+  const totalTicks = (MAX_KG - MIN_KG) * 10 + 1
 
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '60vh', color: 'var(--text-muted)' }}>
@@ -101,7 +102,6 @@ const WeightTracker = ({ user }: { user: string }) => {
 
         {/* Ruler */}
         <div style={{ position: 'relative', marginTop: '1rem' }}>
-          {/* Pointer arrow (fixed center) */}
           <div style={{
             position: 'absolute',
             left: '50%',
@@ -115,7 +115,6 @@ const WeightTracker = ({ user }: { user: string }) => {
             zIndex: 10
           }} />
 
-          {/* Scrollable ruler */}
           <div
             ref={rulerRef}
             onScroll={handleRulerScroll}
@@ -131,7 +130,6 @@ const WeightTracker = ({ user }: { user: string }) => {
               position: 'relative'
             }}
           >
-            {/* left spacer = half width so current weight is centred */}
             <div style={{ flexShrink: 0, width: '50%' }} />
 
             {Array.from({ length: totalTicks }).map((_, i) => {
@@ -165,11 +163,9 @@ const WeightTracker = ({ user }: { user: string }) => {
               )
             })}
 
-            {/* right spacer */}
             <div style={{ flexShrink: 0, width: '50%' }} />
           </div>
 
-          {/* Green center line */}
           <div style={{
             position: 'absolute',
             left: '50%',

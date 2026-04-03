@@ -1,13 +1,18 @@
 import { useState, useCallback, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Scale, TrendingDown, TrendingUp, CheckCircle2, Circle, Calendar } from 'lucide-react'
 import { format, subDays, addDays, isSameDay, parseISO } from 'date-fns'
-import type { DailyLog, Meal } from '../types'
-import useDatabase, { DEFAULT_DATA } from '../hooks/useDatabase'
+import type { DailyLog, Meal, UserData } from '../types'
 
 const toDateKey = (d: Date) => format(d, 'yyyy-MM-dd')
 
-const Dashboard = ({ user }: { user: string }) => {
-  const { data, setData, loading } = useDatabase(user, DEFAULT_DATA)
+interface DashboardProps {
+  user: string
+  data: UserData
+  setData: (d: UserData) => void
+  loading: boolean
+}
+
+const Dashboard = ({ data, setData, loading }: DashboardProps) => {
   const [viewDate, setViewDate] = useState(new Date())
   const dateInputRef = useRef<HTMLInputElement>(null)
 
@@ -16,12 +21,10 @@ const Dashboard = ({ user }: { user: string }) => {
   const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX }
   const handleTouchEnd = (e: React.TouchEvent) => {
     const diff = touchStartX.current - e.changedTouches[0].clientX
-    if (Math.abs(diff) < 40) return // not a swipe
+    if (Math.abs(diff) < 40) return
     if (diff > 0) {
-      // swiped left → next day (only if not today)
       setViewDate(d => { const next = addDays(d, 1); return next > new Date() ? d : next })
     } else {
-      // swiped right → prev day
       setViewDate(d => subDays(d, 1))
     }
   }
@@ -29,7 +32,6 @@ const Dashboard = ({ user }: { user: string }) => {
   const dateKey = toDateKey(viewDate)
   const isToday = isSameDay(viewDate, new Date())
 
-  // --- Daily log helpers ---
   const getOrCreateLog = useCallback((date: Date): DailyLog => {
     const key = toDateKey(date)
     if (data.dailyLogs?.[key]) return data.dailyLogs[key]
@@ -61,7 +63,6 @@ const Dashboard = ({ user }: { user: string }) => {
     })
   }
 
-  // --- Weight helpers ---
   const getWeightChange = (daysAgo: number) => {
     if (!data.weightHistory?.length) return null
     const latest = data.weightHistory[data.weightHistory.length - 1]?.weight
@@ -136,7 +137,6 @@ const Dashboard = ({ user }: { user: string }) => {
           <ChevronRight size={18} />
         </button>
 
-        {/* "Select date" button triggers hidden date input */}
         <button
           onClick={() => dateInputRef.current?.showPicker?.() || dateInputRef.current?.click()}
           style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(255,255,255,0.06)', border: 'var(--border-glass)', borderRadius: '0.8rem', padding: '0.4rem 0.7rem', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.72rem', flexShrink: 0 }}

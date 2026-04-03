@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import { Plus, Trash2, Calendar, Utensils, Info, Edit2 } from 'lucide-react'
-import type { DayPlan, Meal } from '../types'
-import useDatabase, { DEFAULT_DATA } from '../hooks/useDatabase'
+import type { DayPlan, Meal, UserData } from '../types'
 
-const MealPlanner = ({ user }: { user: string }) => {
-  const { data, setData, loading } = useDatabase(user, DEFAULT_DATA)
+interface MealPlannerProps {
+  user: string
+  data: UserData
+  setData: (d: UserData) => void
+  loading: boolean
+}
 
+const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
   const [editingPlanId, setEditingPlanId] = useState('Typical')
   const currentPlan = data.dayPlans[editingPlanId] || { type: editingPlanId, meals: [], guidelines: '' }
   const [newMeal, setNewMeal] = useState({ name: '', time: '12:00', calories: '' })
@@ -86,7 +90,7 @@ const MealPlanner = ({ user }: { user: string }) => {
             {planId}
           </button>
         ))}
-        <button 
+        <button
           onClick={() => {
             const name = prompt('Enter new day type name (e.g. Vacation):')
             if (name) {
@@ -109,7 +113,7 @@ const MealPlanner = ({ user }: { user: string }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Info size={18} color="var(--primary)" /> Guidelines for {editingPlanId}
           </div>
-          <button 
+          <button
             onClick={() => renameDayType(editingPlanId)}
             style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600 }}
           >
@@ -154,25 +158,25 @@ const MealPlanner = ({ user }: { user: string }) => {
       <div className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <h3 style={{ margin: 0 }}>Add Scheduled Meal</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <input 
-            type="text" 
-            placeholder="Meal name (e.g. Smoothie)" 
+          <input
+            type="text"
+            placeholder="Meal name (e.g. Smoothie)"
             value={newMeal.name}
             onChange={(e) => setNewMeal({ ...newMeal, name: e.target.value })}
             className="glass"
             style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', width: '100%' }}
           />
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <input 
-              type="time" 
+            <input
+              type="time"
               value={newMeal.time}
               onChange={(e) => setNewMeal({ ...newMeal, time: e.target.value })}
               className="glass"
               style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: '0 0 auto' }}
             />
-            <input 
-              type="number" 
-              placeholder="Calories" 
+            <input
+              type="number"
+              placeholder="Calories"
               value={newMeal.calories}
               onChange={(e) => setNewMeal({ ...newMeal, calories: e.target.value })}
               className="glass"
@@ -205,7 +209,7 @@ const MealPlanner = ({ user }: { user: string }) => {
                     </div>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => deleteMeal(meal.id)}
                   style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', opacity: 0.6, cursor: 'pointer' }}
                 >
@@ -219,9 +223,9 @@ const MealPlanner = ({ user }: { user: string }) => {
 
       {/* Set as Active */}
       {data.activePlanId !== editingPlanId && (
-        <button 
+        <button
           onClick={() => setData({ ...data, activePlanId: editingPlanId })}
-          className="btn-primary" 
+          className="btn-primary"
           style={{ position: 'sticky', bottom: '1rem', width: '100%', justifyContent: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
         >
           <Calendar size={20} /> Set as Today's Plan
