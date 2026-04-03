@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { ChevronLeft, ChevronRight, Scale, TrendingDown, TrendingUp, CheckCircle2, Circle, Calendar } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Scale, TrendingDown, TrendingUp, CheckCircle2, Circle, Calendar, Info } from 'lucide-react'
 import { format, subDays, addDays, isSameDay, parseISO } from 'date-fns'
 import type { DailyLog, Meal, UserData } from '../types'
 
@@ -180,6 +180,26 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
           <div style={{ height: '100%', width: `${Math.min(progress, 100)}%`, background: 'linear-gradient(90deg, var(--primary), var(--secondary))', borderRadius: '4px', transition: 'width 0.4s ease-out' }} />
         </div>
       </div>
+
+      {/* Plan guidelines banner */}
+      {(() => {
+        const guidelines = data.dayPlans[currentLog.planId]?.guidelines
+        if (!guidelines?.trim()) return null
+        return (
+          <div style={{
+            display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+            background: 'rgba(100,255,218,0.06)',
+            border: '1px solid rgba(100,255,218,0.2)',
+            borderRadius: '1rem',
+            padding: '0.9rem 1rem'
+          }}>
+            <Info size={16} color="var(--primary)" style={{ flexShrink: 0, marginTop: '0.1rem' }} />
+            <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--text-main)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+              {guidelines}
+            </p>
+          </div>
+        )
+      })()}
 
       {/* Timeline */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
