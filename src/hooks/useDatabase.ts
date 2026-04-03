@@ -6,6 +6,19 @@ const useDatabase = (user: string | null, initialData: UserData) => {
   const [loading, setLoading] = useState(true)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
+  const saveToCloud = useCallback(async (updatedData: UserData) => {
+    if (!user) return
+    try {
+      await fetch(`/api/data?user=${user.toLowerCase()}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData)
+      })
+    } catch (error) {
+      console.error('Save error:', error)
+    }
+  }, [user])
+
   // Fetch data
   useEffect(() => {
     if (!user) return
@@ -13,7 +26,7 @@ const useDatabase = (user: string | null, initialData: UserData) => {
     const fetchData = async () => {
       setLoading(true)
       try {
-        const response = await fetch(`/api/data?user=${user}`)
+        const response = await fetch(`/api/data?user=${user.toLowerCase()}`)
         if (response.ok) {
           const cloudData = await response.json()
           if (cloudData) {
@@ -32,20 +45,7 @@ const useDatabase = (user: string | null, initialData: UserData) => {
     }
 
     fetchData()
-  }, [user])
-
-  const saveToCloud = async (updatedData: UserData) => {
-    if (!user) return
-    try {
-      await fetch(`/api/data?user=${user}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedData)
-      })
-    } catch (error) {
-      console.error('Save error:', error)
-    }
-  }
+  }, [user, initialData, saveToCloud])
 
   const updateData = useCallback((newData: UserData) => {
     setData(newData)
@@ -55,7 +55,7 @@ const useDatabase = (user: string | null, initialData: UserData) => {
     saveTimeoutRef.current = setTimeout(() => {
       saveToCloud(newData)
     }, 1000) // 1 second debounce
-  }, [user])
+  }, [saveToCloud])
 
   return { data, setData: updateData, loading }
 }

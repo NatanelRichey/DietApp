@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { FileUp, FileText, Trash2, File, Plus, X } from 'lucide-react'
-import type { UserData, Document } from '../types'
+import type { Document } from '../types'
 import useDatabase from '../hooks/useDatabase'
 
 const DocViewer = ({ user }: { user: string }) => {
@@ -16,6 +16,12 @@ const DocViewer = ({ user }: { user: string }) => {
   const [isAddingDoc, setIsAddingDoc] = useState(false)
   const [newDocContent, setNewDocContent] = useState('')
   const [newDocName, setNewDocName] = useState('')
+
+  useEffect(() => {
+    if (data.documents.length > 0 && !activeDocId) {
+      setActiveDocId(data.documents[0].id)
+    }
+  }, [data.documents])
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -145,9 +151,9 @@ const DocViewer = ({ user }: { user: string }) => {
               />
             </div>
           ))}
-          {data.documents.length === 0 && (
+          {data.documents.length === 0 && !loading && (
             <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontStyle: 'italic', padding: '0.5rem' }}>
-              No documents yet. Click upload to add Markdown files.
+              No documents yet. Click insert or upload to add Markdown.
             </div>
           )}
         </div>
@@ -164,7 +170,7 @@ const DocViewer = ({ user }: { user: string }) => {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', textAlign: 'center', gap: '1rem' }}>
             <File size={48} opacity={0.3} />
-            <p>Select a document to view its content or upload a new .md file.</p>
+            <p>Select a document to view its content or add a new .md file.</p>
           </div>
         )}
       </div>

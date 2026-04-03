@@ -53,7 +53,7 @@ const App = () => {
       display: 'flex', 
       flexDirection: 'column',
       padding: '1rem',
-      paddingBottom: '5rem' // Space for bottom nav
+      paddingBottom: '5rem' 
     }}>
       {/* Header */}
       <header style={{ 
@@ -61,8 +61,7 @@ const App = () => {
         justifyContent: 'space-between', 
         alignItems: 'center',
         marginBottom: '2rem',
-        padding: '0.5rem',
-        minHeight: '4rem'
+        padding: '0.5rem'
       }}>
         <div onClick={handleLogout} style={{ cursor: 'pointer' }}>
           <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }} className="text-gradient">DietApp</h1>
@@ -149,7 +148,7 @@ const NavButton = ({ active, onClick, icon, label }: { active: boolean, onClick:
       color: active ? 'var(--primary)' : 'var(--text-muted)',
       cursor: 'pointer',
       transition: 'all 0.3s ease',
-      transform: 'none',
+      transform: active ? 'scale(1.1) translateY(-4px)' : 'scale(1)',
       fontWeight: active ? '600' : '400',
       width: '20%'
     }}
