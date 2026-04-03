@@ -76,29 +76,60 @@ const App = () => {
     <div className="app-container">
       {/* Header */}
       <header style={{
-        display: 'flex',
-        justifyContent: 'space-between',
+        display: 'grid',
+        gridTemplateColumns: '1fr auto auto',
         alignItems: 'center',
-        padding: '0.8rem 1rem 0.4rem',
+        padding: '0.7rem 1rem 0.4rem',
+        gap: '0.8rem',
         flexShrink: 0
       }}>
-        {/* Double-tap → bug reporter */}
-        <div onClick={handleLogoTap} style={{ cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}>
+        {/* Left: date + double-tap for bug reporter */}
+        <div
+          onClick={handleLogoTap}
+          style={{ cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}
+        >
           <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }} className="text-gradient">DietApp</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-            <Calendar size={12} />
-            {format(currentTime, 'EEE, d MMM')} · {user}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+            <Calendar size={11} />
+            {format(currentTime, 'EEE, d MMM')}
           </div>
         </div>
 
-        {/* Double-tap → bug admin */}
+        {/* Clock — double-tap for bug admin */}
         <div
           onClick={handleClockTap}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '1.1rem', cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '1rem', cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent', color: 'var(--text-main)' }}
         >
-          <Clock size={15} color="var(--secondary)" />
+          <Clock size={14} color="var(--secondary)" />
           {format(currentTime, 'HH:mm')}
         </div>
+
+        {/* User avatar circle — tap to log out */}
+        <button
+          onClick={() => {
+            setUser(null)
+            sessionStorage.removeItem('diet-app-user')
+          }}
+          title="Log out"
+          style={{
+            width: '34px',
+            height: '34px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '0.85rem',
+            fontWeight: 700,
+            color: 'var(--bg-deep)',
+            flexShrink: 0,
+            WebkitTapHighlightColor: 'transparent'
+          }}
+        >
+          {user[0].toUpperCase()}
+        </button>
       </header>
 
       {/* Scrollable main */}

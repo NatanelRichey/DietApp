@@ -19,9 +19,32 @@ const DEFAULT_DATA: UserData = {
   dailyLogs: {}
 }
 
+// localStorage helpers — primary persistence layer (instant, no network needed)
+const localKey = (user: string) => `dietapp_${user.toLowerCase()}`
+
+const saveLocal = (user: string, data: UserData) => {
+  try { localStorage.setItem(localKey(user), JSON.stringify(data)) } catch {}
+}
+
+const loadLocal = (user: string): UserData | null => {
+  try {
+    const raw = localStorage.getItem(localKey(user))
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
 const useDatabase = (user: string | null, initialData: UserData) => {
   const initialDataRef = useRef<UserData>(initialData)
-  const [data, setData] = useState<UserData>(initialData)
+
+  // Seed state from localStorage immediately so there's no blank flash on load
+  const [data, setData] = useState<UserData>(() => {
+    if (user) {
+      const local = loadLocal(user)
+      if (local) return { ...initialData, ...local }
+    }
+    return initialData
+  })
+
   const [loading, setLoading] = useState(true)
   const pendingSaveRef = useRef<UserData | null>(null)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -36,38 +59,31 @@ const useDatabase = (user: string | null, initialData: UserData) => {
         body: JSON.stringify(updatedData)
       })
     } catch (error) {
-      console.error('Save error:', error)
+      console.error('Cloud save error:', error)
     }
   }, [user])
 
-  // Flush any pending save immediately (called on visibility change / beforeunload)
+  // Flush pending cloud save immediately (called on visibility change / beforeunload)
   const flushSave = useCallback(() => {
     if (pendingSaveRef.current) {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-      const dataToSave = pendingSaveRef.current
-      saveToCloud(dataToSave)
+      saveToCloud(pendingSaveRef.current)
     }
   }, [saveToCloud])
 
-  // Listen for page hide / visibility change so we flush before mobile pull-to-refresh unloads page
   useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === 'hidden') flushSave()
-    }
-    const handleBeforeUnload = () => flushSave()
-
-    document.addEventListener('visibilitychange', handleVisibility)
-    window.addEventListener('pagehide', handleBeforeUnload)
-    window.addEventListener('beforeunload', handleBeforeUnload)
-
+    const onHide = () => { if (document.visibilityState === 'hidden') flushSave() }
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('pagehide', flushSave)
+    window.addEventListener('beforeunload', flushSave)
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibility)
-      window.removeEventListener('pagehide', handleBeforeUnload)
-      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('pagehide', flushSave)
+      window.removeEventListener('beforeunload', flushSave)
     }
   }, [flushSave])
 
-  // Fetch data — only re-runs when user changes
+  // Fetch from cloud — syncs on login; localStorage already provided instant data
   useEffect(() => {
     if (!user) {
       setLoading(false)
@@ -76,25 +92,31 @@ const useDatabase = (user: string | null, initialData: UserData) => {
 
     let cancelled = false
 
+    // Load localStorage immediately so the UI never shows DEFAULT_DATA on login
+    const local = loadLocal(user)
+    if (local) {
+      setData({ ...initialDataRef.current, ...local })
+      setLoading(false) // Don't block UI if we have local data; cloud sync is background
+    }
+
     const fetchData = async () => {
-      setLoading(true)
+      if (!local) setLoading(true)
       try {
         const response = await fetch(`/api/data?user=${user.toLowerCase()}`)
         if (!cancelled && response.ok) {
           const cloudData = await response.json()
-          if (cloudData) {
-            // Merge: ensure new fields (dailyLogs) exist even for old data
-            setData({ ...initialDataRef.current, ...cloudData })
-          } else {
-            setData(initialDataRef.current)
-            saveToCloud(initialDataRef.current)
+          if (cloudData && typeof cloudData === 'object' && !cloudData.error) {
+            const merged = { ...initialDataRef.current, ...cloudData }
+            if (!cancelled) {
+              setData(merged)
+              saveLocal(user, merged) // Keep local cache in sync with cloud
+            }
           }
+          // If cloudData is null, keep localStorage data (already set above)
         }
       } catch (error) {
-        if (!cancelled) {
-          console.error('Fetch error:', error)
-          setData(initialDataRef.current)
-        }
+        console.error('Cloud fetch error:', error)
+        // Keep localStorage data — already loaded above
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -106,14 +128,15 @@ const useDatabase = (user: string | null, initialData: UserData) => {
 
   const updateData = useCallback((newData: UserData) => {
     setData(newData)
+    // Save to localStorage immediately — survives logout, app close, API failures
+    if (user) saveLocal(user, newData)
     pendingSaveRef.current = newData
-
-    // Debounce 400ms, but flushSave will fire immediately if page hides
+    // Also debounce cloud save
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
     saveTimeoutRef.current = setTimeout(() => {
       saveToCloud(newData)
     }, 400)
-  }, [saveToCloud])
+  }, [saveToCloud, user])
 
   return { data, setData: updateData, loading }
 }
