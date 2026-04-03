@@ -4,7 +4,7 @@ import type { UserData } from '../types'
 const useDatabase = (user: string | null, initialData: UserData) => {
   const [data, setData] = useState<UserData>(initialData)
   const [loading, setLoading] = useState(true)
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const saveToCloud = useCallback(async (updatedData: UserData) => {
     if (!user) return
