@@ -15,7 +15,7 @@ export default defineConfig({
         description: 'A modern diet and weight tracking PWA',
         theme_color: '#0A192F',
         background_color: '#0A192F',
-        display: 'standalone',
+        display: 'fullscreen',
         scope: '/',
         start_url: '/',
         icons: [

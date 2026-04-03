@@ -6,26 +6,42 @@ import Dashboard from './components/Dashboard'
 import WeightTracker from './components/WeightTracker'
 import MealPlanner from './components/MealPlanner'
 import DocViewer from './components/DocViewer'
+import Login from './components/Login'
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [currentTime, setCurrentTime] = useState(new Date())
+  const [user, setUser] = useState<string | null>(sessionStorage.getItem('diet-app-user'))
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000)
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000) // Update every minute
     return () => clearInterval(timer)
   }, [])
+
+  const handleLogin = (username: string) => {
+    setUser(username)
+    sessionStorage.setItem('diet-app-user', username)
+  }
+
+  const handleLogout = () => {
+    setUser(null)
+    sessionStorage.removeItem('diet-app-user')
+  }
+
+  if (!user) {
+    return <Login onLogin={handleLogin} />
+  }
 
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <Dashboard />
+        return <Dashboard user={user} />
       case 'weight':
-        return <WeightTracker />
+        return <WeightTracker user={user} />
       case 'planner':
-        return <MealPlanner />
+        return <MealPlanner user={user} />
       case 'docs':
-        return <DocViewer />
+        return <DocViewer user={user} />
       default:
         return null
     }
@@ -45,19 +61,20 @@ const App = () => {
         justifyContent: 'space-between', 
         alignItems: 'center',
         marginBottom: '2rem',
-        padding: '0.5rem'
+        padding: '0.5rem',
+        minHeight: '4rem'
       }}>
-        <div>
+        <div onClick={handleLogout} style={{ cursor: 'pointer' }}>
           <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }} className="text-gradient">DietApp</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
             <Calendar size={14} />
-            {format(currentTime, 'EEEE, d MMMM')}
+            {format(currentTime, 'EEEE, d MMMM')} • {user}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '1.2rem' }}>
             <Clock size={16} color="var(--secondary)" />
-            {format(currentTime, 'HH:mm:ss')}
+            {format(currentTime, 'HH:mm')}
           </div>
         </div>
       </header>
@@ -132,7 +149,7 @@ const NavButton = ({ active, onClick, icon, label }: { active: boolean, onClick:
       color: active ? 'var(--primary)' : 'var(--text-muted)',
       cursor: 'pointer',
       transition: 'all 0.3s ease',
-      transform: active ? 'scale(1.1) translateY(-4px)' : 'scale(1)',
+      transform: 'none',
       fontWeight: active ? '600' : '400',
       width: '20%'
     }}

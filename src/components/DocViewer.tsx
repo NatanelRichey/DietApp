@@ -1,42 +1,39 @@
 import { useState, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { FileUp, FileText, Trash2, File } from 'lucide-react'
+import { FileUp, FileText, Trash2, File, Plus, X } from 'lucide-react'
 import type { UserData, Document } from '../types'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import useDatabase from '../hooks/useDatabase'
 
-const DocViewer = () => {
-  const [data, setData] = useLocalStorage<UserData>('diet-app-data', {
+const DocViewer = ({ user }: { user: string }) => {
+  const { data, setData, loading } = useDatabase(user, {
     weightHistory: [],
     dayPlans: {},
     activePlanId: '',
     documents: []
   })
 
-  const [activeDocId, setActiveDocId] = useState<string | null>(
-    data.documents.length > 0 ? data.documents[0].id : null
-  )
+  const [activeDocId, setActiveDocId] = useState<string | null>(null)
+  const [isAddingDoc, setIsAddingDoc] = useState(false)
+  const [newDocContent, setNewDocContent] = useState('')
+  const [newDocName, setNewDocName] = useState('')
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const content = event.target?.result as string
-      const newDoc: Document = {
-        id: Math.random().toString(36).substr(2, 9),
-        name: file.name.replace('.md', ''),
-        content: content
-      }
-      setData({
-        ...data,
-        documents: [...data.documents, newDoc]
-      })
-      setActiveDocId(newDoc.id)
+  const handleManualInsert = () => {
+    if (!newDocName || !newDocContent) return
+    const newDoc: Document = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: newDocName,
+      content: newDocContent
     }
-    reader.readAsText(file)
+    setData({
+      ...data,
+      documents: [...data.documents, newDoc]
+    })
+    setActiveDocId(newDoc.id)
+    setIsAddingDoc(false)
+    setNewDocName('')
+    setNewDocContent('')
   }
 
   const deleteDoc = (id: string, e: React.MouseEvent) => {
@@ -56,21 +53,66 @@ const DocViewer = () => {
       <div className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Documents</h3>
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="btn-primary" 
-            style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}
-          >
-            <FileUp size={16} /> Upload MD
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button 
+              onClick={() => setIsAddingDoc(true)}
+              className="btn-primary" 
+              style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', background: 'var(--secondary)' }}
+            >
+              <Plus size={16} /> Insert MD
+            </button>
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="btn-primary" 
+              style={{ padding: '0.4rem 1rem', fontSize: '0.8rem' }}
+            >
+              <FileUp size={16} /> Upload
+            </button>
+          </div>
           <input 
             type="file" 
             accept=".md" 
             ref={fileInputRef} 
-            onChange={handleFileUpload} 
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              const reader = new FileReader()
+              reader.onload = (ev) => {
+                const content = ev.target?.result as string
+                const newDoc = { id: Math.random().toString(36).substr(2, 9), name: file.name.replace('.md', ''), content }
+                setData({ ...data, documents: [...data.documents, newDoc] })
+                setActiveDocId(newDoc.id)
+              }
+              reader.readAsText(file)
+            }} 
             style={{ display: 'none' }} 
           />
         </div>
+
+        {isAddingDoc && (
+          <div className="glass" style={{ padding: '1rem', borderRadius: '1rem', background: 'rgba(255,255,255,0.03)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h4 style={{ margin: 0, fontSize: '0.9rem' }}>Insert Markdown</h4>
+              <X size={18} onClick={() => setIsAddingDoc(false)} style={{ cursor: 'pointer', opacity: 0.6 }} />
+            </div>
+            <input 
+              type="text" 
+              placeholder="Document Title" 
+              value={newDocName}
+              onChange={(e) => setNewDocName(e.target.value)}
+              style={{ padding: '0.6rem', borderRadius: '0.6rem', border: 'var(--border-glass)', background: 'rgba(0,0,0,0.2)', color: 'white' }}
+            />
+            <textarea 
+              placeholder="Paste Markdown here..." 
+              value={newDocContent}
+              onChange={(e) => setNewDocContent(e.target.value)}
+              style={{ padding: '0.6rem', borderRadius: '0.6rem', border: 'var(--border-glass)', background: 'rgba(0,0,0,0.2)', color: 'white', minHeight: '100px', resize: 'vertical' }}
+            />
+            <button onClick={handleManualInsert} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+              Add Document
+            </button>
+          </div>
+        )}
 
         {/* Horizontal Tabs */}
         <div style={{ display: 'flex', gap: '0.8rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
@@ -113,7 +155,9 @@ const DocViewer = () => {
 
       {/* Viewer */}
       <div className="card glass animate-fade-in" style={{ flex: 1, overflowY: 'auto', padding: '2rem' }}>
-        {activeDoc ? (
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>Loading...</div>
+        ) : activeDoc ? (
           <div className="prose">
             <ReactMarkdown>{activeDoc.content}</ReactMarkdown>
           </div>

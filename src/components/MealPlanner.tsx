@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Plus, Trash2, Calendar, Utensils, Info } from 'lucide-react'
-import type { UserData, DayPlan, Meal } from '../types'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { Plus, Trash2, Calendar, Utensils, Info, Edit2 } from 'lucide-react'
+import type { DayPlan, Meal } from '../types'
+import useDatabase from '../hooks/useDatabase'
 
-const MealPlanner = () => {
-  const [data, setData] = useLocalStorage<UserData>('diet-app-data', {
+const MealPlanner = ({ user }: { user: string }) => {
+  const { data, setData, loading } = useDatabase(user, {
     weightHistory: [],
     dayPlans: {
       'Typical': { type: 'Typical', meals: [], guidelines: '' },
@@ -14,10 +14,11 @@ const MealPlanner = () => {
     documents: []
   })
 
-  const [editingPlanId, setEditingPlanId] = useState(data.activePlanId)
+  const [editingPlanId, setEditingPlanId] = useState('Typical')
   const currentPlan = data.dayPlans[editingPlanId] || { type: editingPlanId, meals: [], guidelines: '' }
-
   const [newMeal, setNewMeal] = useState({ name: '', time: '12:00', calories: '' })
+
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading planner...</div>
 
   const updatePlan = (updatedPlan: DayPlan) => {
     setData({
@@ -48,6 +49,24 @@ const MealPlanner = () => {
     updatePlan({ ...currentPlan, meals: updatedMeals })
   }
 
+  const renameDayType = (oldName: string) => {
+    const newName = prompt('Enter new name:', oldName)
+    if (!newName || newName === oldName) return
+
+    const { [oldName]: planToRename, ...otherPlans } = data.dayPlans
+    const updatedPlans = {
+      ...otherPlans,
+      [newName]: { ...planToRename, type: newName }
+    }
+
+    setData({
+      ...data,
+      dayPlans: updatedPlans,
+      activePlanId: data.activePlanId === oldName ? newName : data.activePlanId
+    })
+    setEditingPlanId(newName)
+  }
+
   const totalCalories = currentPlan.meals.reduce((sum, m) => sum + m.calories, 0)
 
   return (
@@ -65,7 +84,6 @@ const MealPlanner = () => {
               border: editingPlanId === planId ? 'none' : 'var(--border-glass)',
               background: editingPlanId === planId ? 'var(--primary)' : 'transparent',
               color: editingPlanId === planId ? 'var(--bg-deep)' : 'var(--text-muted)',
-              colorScheme: 'none',
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               fontWeight: 600,
@@ -87,7 +105,7 @@ const MealPlanner = () => {
               setEditingPlanId(name)
             }
           }}
-          style={{ background: 'none', border: 'var(--border-glass)', color: 'var(--text-muted)', padding: '0 1rem', borderRadius: '1rem', cursor: 'pointer' }}
+          style={{ background: 'none', border: 'var(--border-glass)', color: 'var(--text-muted)', padding: '0 1rem', borderRadius: '1rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
         >
           + Add Type
         </button>
@@ -95,8 +113,16 @@ const MealPlanner = () => {
 
       {/* Daily Guidelines */}
       <div className="card glass">
-        <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Info size={18} color="var(--primary)" /> Guidelines for {editingPlanId}
+        <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Info size={18} color="var(--primary)" /> Guidelines for {editingPlanId}
+          </div>
+          <button 
+            onClick={() => renameDayType(editingPlanId)}
+            style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600 }}
+          >
+            <Edit2 size={14} /> Rename
+          </button>
         </h3>
         <textarea
           value={currentPlan.guidelines}
@@ -175,12 +201,14 @@ const MealPlanner = () => {
             {currentPlan.meals.map(meal => (
               <div key={meal.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <div style={{ background: 'rgba(100,255,218,0.1)', color: 'var(--primary)', padding: '0.5rem', borderRadius: '0.8rem' }}>
-                    <Utensils size={18} />
+                  <div style={{ background: 'rgba(100,255,218,0.1)', color: 'var(--primary)', padding: '0.6rem', borderRadius: '1rem' }}>
+                    <Utensils size={20} />
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600 }}>{meal.name}</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{meal.time} • {meal.calories} kcal</div>
+                    <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{meal.name}</div>
+                    <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', opacity: 0.9, fontWeight: 500 }}>
+                      <span style={{ color: 'var(--primary)' }}>{meal.time}</span> • {meal.calories} kcal
+                    </div>
                   </div>
                 </div>
                 <button 

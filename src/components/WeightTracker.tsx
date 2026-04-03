@@ -1,21 +1,24 @@
 import { useState, useRef } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { Plus, History, Scale } from 'lucide-react'
+import { Plus, History, Scale, Trash2 } from 'lucide-react'
 import { format, startOfWeek, startOfMonth } from 'date-fns'
-import type { UserData, WeightEntry } from '../types'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import type { WeightEntry } from '../types'
+import useDatabase from '../hooks/useDatabase'
 
-const WeightTracker = () => {
-  const [data, setData] = useLocalStorage<UserData>('diet-app-data', {
+const WeightTracker = ({ user }: { user: string }) => {
+  const { data, setData, loading } = useDatabase(user, {
     weightHistory: [],
     dayPlans: {},
-    activePlanId: '',
+    activePlanId: 'Typical',
     documents: []
   })
-  
+
   const [currentWeight, setCurrentWeight] = useState(70.0)
   const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day')
+  const [isHistoryCollapsed, setIsHistoryCollapsed] = useState(false)
   const rulerRef = useRef<HTMLDivElement>(null)
+
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading weight data...</div>
 
   // Handle Ruler Scroll
   const handleRulerScroll = (e: React.UIEvent<HTMLDivElement>) => {
@@ -32,6 +35,15 @@ const WeightTracker = () => {
     setData({
       ...data,
       weightHistory: [...data.weightHistory, newEntry]
+    })
+  }
+
+  const deleteWeight = (index: number) => {
+    const reversedIndex = data.weightHistory.length - 1 - index
+    const updatedHistory = data.weightHistory.filter((_, i) => i !== reversedIndex)
+    setData({
+      ...data,
+      weightHistory: updatedHistory
     })
   }
 
@@ -150,7 +162,11 @@ const WeightTracker = () => {
                   borderRadius: '0.8rem',
                   fontSize: '0.7rem',
                   fontWeight: 600,
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  flex: 1,
+                  minWidth: '60px',
+                  textAlign: 'center',
+                  transition: 'background 0.2s ease'
                 }}
               >
                 {mode.toUpperCase()}
@@ -203,21 +219,64 @@ const WeightTracker = () => {
       </div>
 
       {/* History */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <History size={20} /> History
-        </h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-          {data.weightHistory.slice().reverse().map((entry, i) => (
-            <div key={i} className="card" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div style={{ fontWeight: 600 }}>{entry.weight} kg</div>
-                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{format(new Date(entry.date), 'PPPP p')}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingBottom: '2rem' }}>
+        <button 
+          onClick={() => setIsHistoryCollapsed(!isHistoryCollapsed)}
+          style={{ 
+            background: 'none', 
+            border: 'none', 
+            color: 'var(--text-main)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            width: '100%',
+            cursor: 'pointer',
+            padding: '0.5rem 0'
+          }}
+        >
+          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <History size={20} /> History
+          </h3>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+            {isHistoryCollapsed ? 'Show' : 'Hide'}
+          </span>
+        </button>
+
+        {!isHistoryCollapsed && (
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '0.8rem',
+            maxHeight: '300px',
+            overflowY: 'auto',
+            paddingRight: '0.5rem'
+          }}>
+            {data.weightHistory.slice().reverse().map((entry, i) => (
+              <div key={i} className="card" style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                  <div style={{ background: 'rgba(100,255,218,0.1)', color: 'var(--primary)', padding: '0.5rem', borderRadius: '0.8rem' }}>
+                    <Scale size={18} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{entry.weight} kg</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{format(new Date(entry.date), 'PPPP p')}</div>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => deleteWeight(i)}
+                  style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', opacity: 0.6, cursor: 'pointer' }}
+                >
+                  <Trash2 size={18} />
+                </button>
               </div>
-              <Scale size={16} color="var(--primary)" />
-            </div>
-          ))}
-        </div>
+            ))}
+            {data.weightHistory.length === 0 && (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                No history yet
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
