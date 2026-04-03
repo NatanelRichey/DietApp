@@ -25,3 +25,7 @@ dist-ssr
 
 .vercel
 .env*.local
+
+# Bug report screenshots (pulled locally via npm run pull-bugs)
+bugs/open/*.png
+bugs/solved/*.png

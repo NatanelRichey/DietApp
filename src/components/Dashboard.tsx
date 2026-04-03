@@ -36,8 +36,12 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
     const key = toDateKey(date)
     if (data.dailyLogs?.[key]) return data.dailyLogs[key]
     const dayOfWeek = date.getDay()
-    const planId = data.weekSchedule?.[dayOfWeek] || data.activePlanId
-    const plan = data.dayPlans[planId] || { meals: [], type: 'Typical', guidelines: '' }
+    const resolvedId = data.weekSchedule?.[dayOfWeek] || data.activePlanId
+    // Fall back to first available plan if resolvedId points to a deleted/renamed plan
+    const planId = data.dayPlans[resolvedId]
+      ? resolvedId
+      : Object.keys(data.dayPlans)[0] ?? resolvedId
+    const plan = data.dayPlans[planId] || { meals: [], type: planId, guidelines: '' }
     return {
       date: key,
       planId,
