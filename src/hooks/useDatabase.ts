@@ -86,18 +86,18 @@ const useDatabase = (user: string | null, initialData: UserData) => {
   // Fetch from cloud — syncs on login; localStorage already provided instant data
   useEffect(() => {
     if (!user) {
+      // Always reset to default on logout so the next user starts clean
+      setData(initialDataRef.current)
       setLoading(false)
       return
     }
 
     let cancelled = false
 
-    // Load localStorage immediately so the UI never shows DEFAULT_DATA on login
+    // Load this user's localStorage immediately — never show another user's data
     const local = loadLocal(user)
-    if (local) {
-      setData({ ...initialDataRef.current, ...local })
-      setLoading(false) // Don't block UI if we have local data; cloud sync is background
-    }
+    setData(local ? { ...initialDataRef.current, ...local } : initialDataRef.current)
+    setLoading(!local) // only show spinner if we have nothing to show yet
 
     const fetchData = async () => {
       if (!local) setLoading(true)

@@ -17,12 +17,12 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [currentTime, setCurrentTime] = useState(new Date())
   const [user, setUser] = useState<string | null>(sessionStorage.getItem('diet-app-user'))
+  const [page, setPage] = useState<'app' | 'bugadmin'>('app')
 
   // Single shared database instance — all tabs read/write the same state
   const { data, setData, loading } = useDatabase(user, DEFAULT_DATA)
 
   const [isBugReporterOpen, setIsBugReporterOpen] = useState(false)
-  const [isBugAdminOpen, setIsBugAdminOpen] = useState(false)
 
   // Double-tap tracking for header gestures
   const lastLogoTapRef = useRef(0)
@@ -51,7 +51,7 @@ const App = () => {
   const handleClockTap = () => {
     const now = Date.now()
     if (now - lastClockTapRef.current < DOUBLE_TAP_MS) {
-      setIsBugAdminOpen(true)
+      setPage('bugadmin')
       lastClockTapRef.current = 0
     } else {
       lastClockTapRef.current = now
@@ -59,6 +59,11 @@ const App = () => {
   }
 
   if (!user) return <Login onLogin={handleLogin} />
+
+  // Bug admin is a full standalone page — no header, no nav
+  if (page === 'bugadmin') {
+    return <BugAdmin onClose={() => setPage('app')} />
+  }
 
   const tabProps = { data, setData, loading }
 
@@ -83,7 +88,7 @@ const App = () => {
         gap: '0.8rem',
         flexShrink: 0
       }}>
-        {/* Left: date + double-tap for bug reporter */}
+        {/* Left: DietApp + date — double-tap opens bug reporter */}
         <div
           onClick={handleLogoTap}
           style={{ cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}
@@ -95,7 +100,7 @@ const App = () => {
           </div>
         </div>
 
-        {/* Clock — double-tap for bug admin */}
+        {/* Clock — double-tap opens bug admin page */}
         <div
           onClick={handleClockTap}
           style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '1rem', cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent', color: 'var(--text-main)' }}
@@ -199,10 +204,6 @@ const App = () => {
         onClose={() => setIsBugReporterOpen(false)}
         user={user || 'Guest'}
       />
-
-      {isBugAdminOpen && (
-        <BugAdmin onClose={() => setIsBugAdminOpen(false)} />
-      )}
     </div>
   )
 }
