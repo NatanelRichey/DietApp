@@ -23,9 +23,17 @@ export interface Document {
   content: string; // Markdown
 }
 
+// A daily log stores the actual eaten state per day (separate from templates)
+export interface DailyLog {
+  date: string;       // YYYY-MM-DD
+  planId: string;     // which template was used
+  meals: Meal[];      // snapshot with completed state
+}
+
 export interface UserData {
   weightHistory: WeightEntry[];
   dayPlans: Record<string, DayPlan>;
   activePlanId: string;
   documents: Document[];
+  dailyLogs: Record<string, DailyLog>; // key: YYYY-MM-DD
 }

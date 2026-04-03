@@ -14,7 +14,7 @@ const App = () => {
   const [user, setUser] = useState<string | null>(sessionStorage.getItem('diet-app-user'))
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 60000) // Update every minute
+    const timer = setInterval(() => setCurrentTime(new Date()), 60000)
     return () => clearInterval(timer)
   }, [])
 
@@ -28,134 +28,103 @@ const App = () => {
     sessionStorage.removeItem('diet-app-user')
   }
 
-  if (!user) {
-    return <Login onLogin={handleLogin} />
-  }
+  if (!user) return <Login onLogin={handleLogin} />
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'dashboard':
-        return <Dashboard user={user} />
-      case 'weight':
-        return <WeightTracker user={user} />
-      case 'planner':
-        return <MealPlanner user={user} />
-      case 'docs':
-        return <DocViewer user={user} />
-      default:
-        return null
+      case 'dashboard': return <Dashboard user={user} />
+      case 'weight':    return <WeightTracker user={user} />
+      case 'planner':   return <MealPlanner user={user} />
+      case 'docs':      return <DocViewer user={user} />
+      default:          return null
     }
   }
 
   return (
-    <div className="app-container" style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column',
-      padding: '1rem',
-      paddingBottom: '5rem' 
-    }}>
-      {/* Header */}
-      <header style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
+    <div className="app-container">
+      {/* Header — fixed height, no scroll */}
+      <header style={{
+        display: 'flex',
+        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '2rem',
-        padding: '0.5rem'
+        padding: '0.8rem 1rem 0.4rem',
+        flexShrink: 0
       }}>
         <div onClick={handleLogout} style={{ cursor: 'pointer' }}>
-          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }} className="text-gradient">DietApp</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            <Calendar size={14} />
-            {format(currentTime, 'EEEE, d MMMM')} • {user}
+          <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }} className="text-gradient">DietApp</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+            <Calendar size={12} />
+            {format(currentTime, 'EEE, d MMM')} · {user}
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '1.2rem' }}>
-            <Clock size={16} color="var(--secondary)" />
-            {format(currentTime, 'HH:mm')}
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '1.1rem' }}>
+          <Clock size={15} color="var(--secondary)" />
+          {format(currentTime, 'HH:mm')}
         </div>
       </header>
 
-      {/* Main Content */}
-      <main style={{ flex: 1 }}>
+      {/* Scrollable main — fills remaining height */}
+      <main className="page-scroll" style={{ paddingBottom: '5.5rem' }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.18 }}
           >
             {renderContent()}
           </motion.div>
         </AnimatePresence>
       </main>
 
-      {/* Bottom Navigation */}
+      {/* Bottom Nav — fixed, outside scroll area */}
       <nav className="glass" style={{
         position: 'fixed',
-        bottom: '1rem',
-        left: '1rem',
-        right: '1rem',
-        height: '4rem',
+        bottom: '0.75rem',
+        left: '0.75rem',
+        right: '0.75rem',
+        height: '3.8rem',
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
         zIndex: 1000,
-        padding: '0 0.5rem'
+        padding: '0 0.5rem',
+        borderRadius: '1.5rem'
       }}>
-        <NavButton 
-          active={activeTab === 'dashboard'} 
-          onClick={() => setActiveTab('dashboard')} 
-          icon={<LayoutDashboard />} 
-          label="Home" 
-        />
-        <NavButton 
-          active={activeTab === 'weight'} 
-          onClick={() => setActiveTab('weight')} 
-          icon={<Scale />} 
-          label="Weight" 
-        />
-        <NavButton 
-          active={activeTab === 'planner'} 
-          onClick={() => setActiveTab('planner')} 
-          icon={<Utensils />} 
-          label="Planner" 
-        />
-        <NavButton 
-          active={activeTab === 'docs'} 
-          onClick={() => setActiveTab('docs')} 
-          icon={<Files />} 
-          label="Docs" 
-        />
+        {[
+          { tab: 'dashboard', icon: <LayoutDashboard size={22} />, label: 'Home' },
+          { tab: 'weight',    icon: <Scale size={22} />,           label: 'Weight' },
+          { tab: 'planner',   icon: <Utensils size={22} />,        label: 'Planner' },
+          { tab: 'docs',      icon: <Files size={22} />,           label: 'Docs' },
+        ].map(({ tab, icon, label }) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            style={{
+              background: 'none',
+              border: 'none',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.15rem',
+              color: activeTab === tab ? 'var(--primary)' : 'var(--text-muted)',
+              cursor: 'pointer',
+              width: '25%',
+              padding: '0.3rem 0',
+              // No transform — prevents zoom flicker
+              fontWeight: activeTab === tab ? 600 : 400,
+              fontSize: '0.65rem',
+              transition: 'color 0.2s ease'
+            }}
+          >
+            {icon}
+            {label}
+          </button>
+        ))}
       </nav>
     </div>
   )
 }
-
-const NavButton = ({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: any, label: string }) => (
-  <button 
-    onClick={onClick}
-    style={{
-      background: 'none',
-      border: 'none',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: '0.2rem',
-      color: active ? 'var(--primary)' : 'var(--text-muted)',
-      cursor: 'pointer',
-      transition: 'all 0.3s ease',
-      transform: active ? 'scale(1.1) translateY(-4px)' : 'scale(1)',
-      fontWeight: active ? '600' : '400',
-      width: '20%'
-    }}
-  >
-    {icon}
-    <span style={{ fontSize: '0.7rem' }}>{label}</span>
-  </button>
-)
 
 export default App

@@ -2,15 +2,10 @@ import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { FileUp, FileText, Trash2, File, Plus, X } from 'lucide-react'
 import type { Document } from '../types'
-import useDatabase from '../hooks/useDatabase'
+import useDatabase, { DEFAULT_DATA } from '../hooks/useDatabase'
 
 const DocViewer = ({ user }: { user: string }) => {
-  const { data, setData, loading } = useDatabase(user, {
-    weightHistory: [],
-    dayPlans: {},
-    activePlanId: '',
-    documents: []
-  })
+  const { data, setData, loading } = useDatabase(user, DEFAULT_DATA)
 
   const [activeDocId, setActiveDocId] = useState<string | null>(null)
   const [isAddingDoc, setIsAddingDoc] = useState(false)

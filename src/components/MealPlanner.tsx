@@ -1,18 +1,10 @@
 import { useState } from 'react'
 import { Plus, Trash2, Calendar, Utensils, Info, Edit2 } from 'lucide-react'
 import type { DayPlan, Meal } from '../types'
-import useDatabase from '../hooks/useDatabase'
+import useDatabase, { DEFAULT_DATA } from '../hooks/useDatabase'
 
 const MealPlanner = ({ user }: { user: string }) => {
-  const { data, setData, loading } = useDatabase(user, {
-    weightHistory: [],
-    dayPlans: {
-      'Typical': { type: 'Typical', meals: [], guidelines: '' },
-      'Shabbat': { type: 'Shabbat', meals: [], guidelines: '' }
-    },
-    activePlanId: 'Typical',
-    documents: []
-  })
+  const { data, setData, loading } = useDatabase(user, DEFAULT_DATA)
 
   const [editingPlanId, setEditingPlanId] = useState('Typical')
   const currentPlan = data.dayPlans[editingPlanId] || { type: editingPlanId, meals: [], guidelines: '' }
@@ -130,14 +122,16 @@ const MealPlanner = ({ user }: { user: string }) => {
           placeholder="Enter guidelines for this type of day..."
           style={{
             width: '100%',
-            minHeight: '100px',
+            maxWidth: '100%',
+            minHeight: '80px',
             background: 'rgba(255,255,255,0.05)',
             border: 'var(--border-glass)',
             borderRadius: '1rem',
-            padding: '1rem',
+            padding: '0.8rem',
             color: 'var(--text-main)',
             fontSize: '0.9rem',
-            resize: 'vertical'
+            resize: 'vertical',
+            fontFamily: 'inherit'
           }}
         />
       </div>
@@ -199,15 +193,15 @@ const MealPlanner = ({ user }: { user: string }) => {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
             {currentPlan.meals.map(meal => (
-              <div key={meal.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                  <div style={{ background: 'rgba(100,255,218,0.1)', color: 'var(--primary)', padding: '0.6rem', borderRadius: '1rem' }}>
-                    <Utensils size={20} />
+              <div key={meal.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.9rem 1rem', gap: '0.8rem', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                  <div style={{ background: 'rgba(100,255,218,0.1)', color: 'var(--primary)', padding: '0.5rem', borderRadius: '0.8rem', flexShrink: 0 }}>
+                    <Utensils size={18} />
                   </div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>{meal.name}</div>
-                    <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', opacity: 0.9, fontWeight: 500 }}>
-                      <span style={{ color: 'var(--primary)' }}>{meal.time}</span> • {meal.calories} kcal
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meal.name}</div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      <span style={{ color: 'var(--primary)' }}>{meal.time}</span> · {meal.calories} kcal
                     </div>
                   </div>
                 </div>
