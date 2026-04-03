@@ -35,10 +35,12 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
   const getOrCreateLog = useCallback((date: Date): DailyLog => {
     const key = toDateKey(date)
     if (data.dailyLogs?.[key]) return data.dailyLogs[key]
-    const plan = data.dayPlans[data.activePlanId] || { meals: [], type: 'Typical', guidelines: '' }
+    const dayOfWeek = date.getDay()
+    const planId = data.weekSchedule?.[dayOfWeek] || data.activePlanId
+    const plan = data.dayPlans[planId] || { meals: [], type: 'Typical', guidelines: '' }
     return {
       date: key,
-      planId: data.activePlanId,
+      planId,
       meals: plan.meals.map(m => ({ ...m, completed: false }))
     }
   }, [data])

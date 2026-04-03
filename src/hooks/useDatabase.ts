@@ -15,6 +15,7 @@ const DEFAULT_DATA: UserData = {
     }
   },
   activePlanId: 'Typical',
+  weekSchedule: {},
   documents: [],
   dailyLogs: {}
 }

@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Plus, Trash2, Calendar, Utensils, Info, Edit2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { format } from 'date-fns'
+import { Plus, Trash2, Calendar, Utensils, Info, Edit2, Save } from 'lucide-react'
 import type { DayPlan, Meal, UserData } from '../types'
 
 interface MealPlannerProps {
@@ -10,11 +11,54 @@ interface MealPlannerProps {
 }
 
 const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
-  const [editingPlanId, setEditingPlanId] = useState('Typical')
+  const [editingPlanId, setEditingPlanId] = useState(() => {
+    const keys = Object.keys(data.dayPlans)
+    return keys.includes(data.activePlanId) ? data.activePlanId : (keys[0] || '')
+  })
   const currentPlan = data.dayPlans[editingPlanId] || { type: editingPlanId, meals: [], guidelines: '' }
   const [newMeal, setNewMeal] = useState({ name: '', time: '12:00', calories: '' })
 
+  const [selectedDays, setSelectedDays] = useState<number[]>(() =>
+    Object.entries(data.weekSchedule || {})
+      .filter(([, pid]) => pid === editingPlanId)
+      .map(([day]) => Number(day))
+  )
+  const [scheduleDirty, setScheduleDirty] = useState(false)
+
+  useEffect(() => {
+    const days = Object.entries(data.weekSchedule || {})
+      .filter(([, pid]) => pid === editingPlanId)
+      .map(([day]) => Number(day))
+    setSelectedDays(days)
+    setScheduleDirty(false)
+  }, [editingPlanId])
+
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading planner...</div>
+
+  const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+  const otherPlanDays = new Set<number>(
+    Object.entries(data.weekSchedule || {})
+      .filter(([, pid]) => pid !== editingPlanId)
+      .map(([day]) => Number(day))
+  )
+
+  const toggleDay = (day: number) => {
+    setSelectedDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    )
+    setScheduleDirty(true)
+  }
+
+  const saveSchedule = () => {
+    const cleared = Object.fromEntries(
+      Object.entries(data.weekSchedule || {}).filter(([, pid]) => pid !== editingPlanId)
+    ) as Record<number, string>
+    const newSchedule: Record<number, string> = { ...cleared }
+    selectedDays.forEach(day => { newSchedule[day] = editingPlanId })
+    setData({ ...data, weekSchedule: newSchedule })
+    setScheduleDirty(false)
+  }
 
   const updatePlan = (updatedPlan: DayPlan) => {
     setData({
@@ -54,11 +98,16 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
       ...otherPlans,
       [newName]: { ...planToRename, type: newName }
     }
+    const updatedSchedule: Record<number, string> = {}
+    Object.entries(data.weekSchedule || {}).forEach(([day, pid]) => {
+      updatedSchedule[Number(day)] = pid === oldName ? newName : pid
+    })
 
     setData({
       ...data,
       dayPlans: updatedPlans,
-      activePlanId: data.activePlanId === oldName ? newName : data.activePlanId
+      activePlanId: data.activePlanId === oldName ? newName : data.activePlanId,
+      weekSchedule: updatedSchedule
     })
     setEditingPlanId(newName)
   }
@@ -154,6 +203,60 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
         </div>
       </div>
 
+      {/* Weekly Schedule */}
+      <div className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Calendar size={18} color="var(--primary)" /> Weekly Schedule
+        </h3>
+
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+          {DAY_LABELS.map((label, day) => {
+            const isSelected = selectedDays.includes(day)
+            const isOther = otherPlanDays.has(day)
+            return (
+              <button
+                key={day}
+                onClick={() => toggleDay(day)}
+                style={{
+                  padding: '0.45rem 0.75rem',
+                  borderRadius: '2rem',
+                  border: isSelected
+                    ? '2px solid var(--primary)'
+                    : isOther
+                      ? '2px solid var(--accent-pink)'
+                      : 'var(--border-glass)',
+                  background: isSelected ? 'rgba(100,255,218,0.15)' : 'transparent',
+                  color: isSelected ? 'var(--primary)' : isOther ? 'var(--accent-pink)' : 'var(--text-muted)',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                  fontSize: '0.8rem',
+                  opacity: isOther && !isSelected ? 0.55 : 1,
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+
+        {selectedDays.some(d => otherPlanDays.has(d)) && (
+          <div style={{ fontSize: '0.75rem', color: 'var(--accent-pink)', opacity: 0.85 }}>
+            Some selected days are currently assigned to another plan and will be reassigned on save.
+          </div>
+        )}
+
+        {scheduleDirty && (
+          <button
+            onClick={saveSchedule}
+            className="btn-primary"
+            style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Save size={16} /> Save Schedule
+          </button>
+        )}
+      </div>
+
       {/* Add Meal Form */}
       <div className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <h3 style={{ margin: 0 }}>Add Scheduled Meal</h3>
@@ -224,7 +327,24 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
       {/* Set as Active */}
       {data.activePlanId !== editingPlanId && (
         <button
-          onClick={() => setData({ ...data, activePlanId: editingPlanId })}
+          onClick={() => {
+            const todayKey = format(new Date(), 'yyyy-MM-dd')
+            const todayLog = data.dailyLogs?.[todayKey]
+            const plan = data.dayPlans[editingPlanId]
+            const newData: UserData = { ...data, activePlanId: editingPlanId }
+            // Update today's log only if no meals have been completed yet
+            if (!todayLog || !todayLog.meals.some(m => m.completed)) {
+              newData.dailyLogs = {
+                ...(data.dailyLogs || {}),
+                [todayKey]: {
+                  date: todayKey,
+                  planId: editingPlanId,
+                  meals: plan.meals.map(m => ({ ...m, completed: false }))
+                }
+              }
+            }
+            setData(newData)
+          }}
           className="btn-primary"
           style={{ position: 'sticky', bottom: '1rem', width: '100%', justifyContent: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
         >

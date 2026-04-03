@@ -34,6 +34,7 @@ export interface UserData {
   weightHistory: WeightEntry[];
   dayPlans: Record<string, DayPlan>;
   activePlanId: string;
+  weekSchedule: Record<number, string>; // 0=Sun … 6=Sat → planId
   documents: Document[];
   dailyLogs: Record<string, DailyLog>; // key: YYYY-MM-DD
 }
