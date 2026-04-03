@@ -7,11 +7,21 @@ import WeightTracker from './components/WeightTracker'
 import MealPlanner from './components/MealPlanner'
 import DocViewer from './components/DocViewer'
 import Login from './components/Login'
+import BugReporter from './components/BugReporter'
+import BugAdmin from './components/BugAdmin'
+import { useRef } from 'react'
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [currentTime, setCurrentTime] = useState(new Date())
   const [user, setUser] = useState<string | null>(sessionStorage.getItem('diet-app-user'))
+  
+  // Bug Reporting State
+  const [isBugReporterOpen, setIsBugReporterOpen] = useState(false)
+  const [isBugAdminOpen, setIsBugAdminOpen] = useState(false)
+  const [clickCount, setClickCount] = useState(0)
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000)
@@ -100,7 +110,42 @@ const App = () => {
         ].map(({ tab, icon, label }) => (
           <button
             key={tab}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+              if (tab === 'dashboard') {
+                setClickCount(prev => prev + 1)
+                if (clickTimerRef.current) clearTimeout(clickTimerRef.current)
+                clickTimerRef.current = setTimeout(() => setClickCount(0), 500)
+                
+                if (clickCount + 1 === 3) {
+                  setIsBugReporterOpen(true)
+                  setClickCount(0)
+                }
+              }
+              setActiveTab(tab)
+            }}
+            onMouseDown={() => {
+              if (tab === 'dashboard') {
+                longPressTimerRef.current = setTimeout(() => {
+                  setIsBugAdminOpen(true)
+                }, 2000)
+              }
+            }}
+            onMouseUp={() => {
+              if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+            }}
+            onMouseLeave={() => {
+              if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+            }}
+            onTouchStart={() => {
+              if (tab === 'dashboard') {
+                longPressTimerRef.current = setTimeout(() => {
+                  setIsBugAdminOpen(true)
+                }, 2000)
+              }
+            }}
+            onTouchEnd={() => {
+              if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+            }}
             style={{
               background: 'none',
               border: 'none',
@@ -112,10 +157,11 @@ const App = () => {
               cursor: 'pointer',
               width: '25%',
               padding: '0.3rem 0',
-              // No transform — prevents zoom flicker
               fontWeight: activeTab === tab ? 600 : 400,
               fontSize: '0.65rem',
-              transition: 'color 0.2s ease'
+              transition: 'color 0.2s ease',
+              userSelect: 'none',
+              WebkitTapHighlightColor: 'transparent'
             }}
           >
             {icon}
@@ -123,6 +169,17 @@ const App = () => {
           </button>
         ))}
       </nav>
+
+      {/* Bug Reporting UI */}
+      <BugReporter 
+        isOpen={isBugReporterOpen} 
+        onClose={() => setIsBugReporterOpen(false)} 
+        user={user || 'Guest'} 
+      />
+      
+      {isBugAdminOpen && (
+        <BugAdmin onClose={() => setIsBugAdminOpen(false)} />
+      )}
     </div>
   )
 }

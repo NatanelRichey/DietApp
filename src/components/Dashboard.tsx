@@ -1,15 +1,30 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { ChevronLeft, ChevronRight, Scale, TrendingDown, TrendingUp, CheckCircle2, Circle, Calendar } from 'lucide-react'
 import { format, subDays, addDays, isSameDay, parseISO } from 'date-fns'
 import type { DailyLog, Meal } from '../types'
-import useDatabase from '../hooks/useDatabase'
-import { DEFAULT_DATA } from '../hooks/useDatabase'
+import useDatabase, { DEFAULT_DATA } from '../hooks/useDatabase'
 
 const toDateKey = (d: Date) => format(d, 'yyyy-MM-dd')
 
 const Dashboard = ({ user }: { user: string }) => {
   const { data, setData, loading } = useDatabase(user, DEFAULT_DATA)
   const [viewDate, setViewDate] = useState(new Date())
+  const dateInputRef = useRef<HTMLInputElement>(null)
+
+  // Swipe detection
+  const touchStartX = useRef(0)
+  const handleTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX }
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const diff = touchStartX.current - e.changedTouches[0].clientX
+    if (Math.abs(diff) < 40) return // not a swipe
+    if (diff > 0) {
+      // swiped left → next day (only if not today)
+      setViewDate(d => { const next = addDays(d, 1); return next > new Date() ? d : next })
+    } else {
+      // swiped right → prev day
+      setViewDate(d => subDays(d, 1))
+    }
+  }
 
   const dateKey = toDateKey(viewDate)
   const isToday = isSameDay(viewDate, new Date())
@@ -18,7 +33,6 @@ const Dashboard = ({ user }: { user: string }) => {
   const getOrCreateLog = useCallback((date: Date): DailyLog => {
     const key = toDateKey(date)
     if (data.dailyLogs?.[key]) return data.dailyLogs[key]
-    // Create a fresh log from the active plan template
     const plan = data.dayPlans[data.activePlanId] || { meals: [], type: 'Typical', guidelines: '' }
     return {
       date: key,
@@ -35,7 +49,7 @@ const Dashboard = ({ user }: { user: string }) => {
   const progress = totalCalories > 0 ? (consumedCalories / totalCalories) * 100 : 0
 
   const toggleMeal = (mealId: string) => {
-    if (!isToday) return // Can't edit past days
+    if (!isToday) return
     const updated = currentMeals.map(m => m.id === mealId ? { ...m, completed: !m.completed } : m)
     const key = toDateKey(viewDate)
     setData({
@@ -67,7 +81,11 @@ const Dashboard = ({ user }: { user: string }) => {
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+    <div
+      style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
 
       {/* Weight cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.8rem' }}>
@@ -100,29 +118,39 @@ const Dashboard = ({ user }: { user: string }) => {
         >
           <ChevronLeft size={18} />
         </button>
+
         <div style={{ flex: 1, textAlign: 'center' }}>
           <div style={{ fontWeight: 700, fontSize: '1rem' }}>
-            {isToday ? "Today" : format(viewDate, 'EEE, d MMM')}
+            {isToday ? 'Today' : format(viewDate, 'EEE, d MMM')}
           </div>
           <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
             {isToday ? format(viewDate, 'MMMM d') : format(viewDate, 'yyyy')}
           </div>
         </div>
+
         <button
-          onClick={() => setViewDate(d => addDays(d, 1))}
+          onClick={() => setViewDate(d => { const next = addDays(d, 1); return next > new Date() ? d : next })}
           disabled={isToday}
-          style={{ background: isToday ? 'transparent' : 'rgba(255,255,255,0.05)', border: 'var(--border-glass)', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isToday ? 'default' : 'pointer', color: isToday ? 'var(--text-muted)' : 'var(--text-main)', opacity: isToday ? 0.3 : 1, flexShrink: 0 }}
+          style={{ background: 'rgba(255,255,255,0.05)', border: 'var(--border-glass)', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isToday ? 'default' : 'pointer', color: isToday ? 'var(--text-muted)' : 'var(--text-main)', opacity: isToday ? 0.3 : 1, flexShrink: 0 }}
         >
           <ChevronRight size={18} />
         </button>
 
-        {/* Jump to date */}
+        {/* "Select date" button triggers hidden date input */}
+        <button
+          onClick={() => dateInputRef.current?.showPicker?.() || dateInputRef.current?.click()}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(255,255,255,0.06)', border: 'var(--border-glass)', borderRadius: '0.8rem', padding: '0.4rem 0.7rem', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.72rem', flexShrink: 0 }}
+        >
+          <Calendar size={13} />
+          <span>Date</span>
+        </button>
         <input
+          ref={dateInputRef}
           type="date"
           max={toDateKey(new Date())}
           value={dateKey}
           onChange={e => e.target.value && setViewDate(new Date(e.target.value + 'T12:00:00'))}
-          style={{ background: 'rgba(255,255,255,0.05)', border: 'var(--border-glass)', borderRadius: '0.8rem', padding: '0.4rem 0.6rem', color: 'var(--text-muted)', fontSize: '0.75rem', width: 38, flexShrink: 0 }}
+          style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0 }}
         />
       </div>
 
@@ -185,13 +213,10 @@ const Dashboard = ({ user }: { user: string }) => {
                   onClick={() => toggleMeal(meal.id)}
                   disabled={!isToday}
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 0,
+                    background: 'none', border: 'none', padding: 0,
                     color: meal.completed ? 'var(--primary)' : 'var(--text-muted)',
                     cursor: isToday ? 'pointer' : 'default',
-                    flexShrink: 0,
-                    display: 'flex'
+                    flexShrink: 0, display: 'flex'
                   }}
                 >
                   {meal.completed ? <CheckCircle2 size={24} /> : <Circle size={24} />}
@@ -200,13 +225,9 @@ const Dashboard = ({ user }: { user: string }) => {
                   <div style={{ fontWeight: 600, fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {meal.name}
                   </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--accent-green)' }}>
-                    {meal.calories} kcal
-                  </div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--accent-green)' }}>{meal.calories} kcal</div>
                 </div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', flexShrink: 0 }}>
-                  {meal.time}
-                </div>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', flexShrink: 0 }}>{meal.time}</div>
               </div>
             ))}
           </div>

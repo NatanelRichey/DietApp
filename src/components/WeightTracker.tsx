@@ -27,22 +27,37 @@ const WeightTracker = ({ user }: { user: string }) => {
   const rulerRef = useRef<HTMLDivElement>(null)
   const initialisedRef = useRef(false)
 
-  // On first load, snap ruler to last logged weight (or default)
+  const snapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // On first load, snap ruler to last logged weight
   useEffect(() => {
     if (!loading && !initialisedRef.current && rulerRef.current) {
       initialisedRef.current = true
       const lastWeight = data.weightHistory?.length
         ? data.weightHistory[data.weightHistory.length - 1].weight
         : DEFAULT_KG
-      const clampedKg = Math.min(Math.max(lastWeight, MIN_KG), MAX_KG)
-      setCurrentWeight(clampedKg)
-      rulerRef.current.scrollLeft = kgToScroll(clampedKg)
+      const clamped = Math.min(Math.max(Math.round(lastWeight * 2) / 2, MIN_KG), MAX_KG)
+      setCurrentWeight(clamped)
+      rulerRef.current.scrollLeft = kgToScroll(clamped)
     }
   }, [loading, data.weightHistory])
 
+  const snapToNearest = (scrollLeft: number, el: HTMLDivElement) => {
+    const raw = scrollToKg(scrollLeft)
+    const snapped = Math.min(Math.max(Math.round(raw * 2) / 2, MIN_KG), MAX_KG)
+    setCurrentWeight(snapped)
+    el.scrollLeft = kgToScroll(snapped)
+  }
+
   const handleRulerScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const kg = scrollToKg(e.currentTarget.scrollLeft)
-    setCurrentWeight(Math.min(Math.max(kg, MIN_KG), MAX_KG))
+    // Update live display without snapping yet
+    const raw = scrollToKg(e.currentTarget.scrollLeft)
+    setCurrentWeight(Math.min(Math.max(Math.round(raw * 2) / 2, MIN_KG), MAX_KG))
+
+    // Snap after scroll stops
+    const el = e.currentTarget
+    if (snapTimeoutRef.current) clearTimeout(snapTimeoutRef.current)
+    snapTimeoutRef.current = setTimeout(() => snapToNearest(el.scrollLeft, el), 150)
   }
 
   const addWeight = () => {

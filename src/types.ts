@@ -37,3 +37,20 @@ export interface UserData {
   documents: Document[];
   dailyLogs: Record<string, DailyLog>; // key: YYYY-MM-DD
 }
+
+export type BugStatus = 'pending' | 'solved' | 'archived';
+
+export interface BugReport {
+  id: string;
+  report: string;
+  deviceInfo: {
+    viewportWidth: number;
+    viewportHeight: number;
+    userAgent: string;
+    url: string;
+  };
+  imageUrl: string;
+  user: string;
+  timestamp: string;
+  status: BugStatus;
+}

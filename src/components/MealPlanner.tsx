@@ -153,35 +153,35 @@ const MealPlanner = ({ user }: { user: string }) => {
       {/* Add Meal Form */}
       <div className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <h3 style={{ margin: 0 }}>Add Scheduled Meal</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <input 
             type="text" 
             placeholder="Meal name (e.g. Smoothie)" 
             value={newMeal.name}
             onChange={(e) => setNewMeal({ ...newMeal, name: e.target.value })}
             className="glass"
-            style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)' }}
+            style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', width: '100%' }}
           />
-          <input 
-            type="time" 
-            value={newMeal.time}
-            onChange={(e) => setNewMeal({ ...newMeal, time: e.target.value })}
-            className="glass"
-            style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)' }}
-          />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem' }}>
-          <input 
-            type="number" 
-            placeholder="Calories" 
-            value={newMeal.calories}
-            onChange={(e) => setNewMeal({ ...newMeal, calories: e.target.value })}
-            className="glass"
-            style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)' }}
-          />
-          <button onClick={addMeal} className="btn-primary">
-            <Plus size={20} /> Add
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <input 
+              type="time" 
+              value={newMeal.time}
+              onChange={(e) => setNewMeal({ ...newMeal, time: e.target.value })}
+              className="glass"
+              style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: '0 0 auto' }}
+            />
+            <input 
+              type="number" 
+              placeholder="Calories" 
+              value={newMeal.calories}
+              onChange={(e) => setNewMeal({ ...newMeal, calories: e.target.value })}
+              className="glass"
+              style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: 0 }}
+            />
+            <button onClick={addMeal} className="btn-primary" style={{ flexShrink: 0 }}>
+              <Plus size={18} /> Add
+            </button>
+          </div>
         </div>
       </div>
 
