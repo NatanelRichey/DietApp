@@ -17,7 +17,12 @@ const DEFAULT_DATA: UserData = {
   activePlanId: 'Typical',
   weekSchedule: {},
   documents: [],
-  dailyLogs: {}
+  dailyLogs: {},
+  simCart: {
+    foodItems: [],
+    savedMeals: [],
+    dailyLogs: {}
+  }
 }
 
 // localStorage helpers — primary persistence layer (instant, no network needed)

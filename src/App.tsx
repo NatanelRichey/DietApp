@@ -10,6 +10,7 @@ import DocViewer from './components/DocViewer'
 import Login from './components/Login'
 import BugReporter from './components/BugReporter'
 import BugAdmin from './components/BugAdmin'
+import SimCartApp from './components/simcart/SimCartApp'
 import useDatabase, { DEFAULT_DATA } from './hooks/useDatabase'
 
 const DOUBLE_TAP_MS = 300
@@ -67,6 +68,19 @@ const App = () => {
   }
 
   if (!user) return <Login onLogin={handleLogin} />
+
+  // Simha gets the SimCart experience — completely separate shell, no dock
+  if (user.toLowerCase() === 'simha') {
+    return (
+      <SimCartApp
+        user={user}
+        data={data}
+        setData={setData}
+        loading={loading}
+        onLogout={() => { setUser(null); sessionStorage.removeItem('diet-app-user') }}
+      />
+    )
+  }
 
   // Bug admin is a full standalone page — no header, no nav
   if (page === 'bugadmin') {

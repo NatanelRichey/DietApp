@@ -37,7 +37,52 @@ export interface UserData {
   weekSchedule: Record<number, string>; // 0=Sun … 6=Sat → planId
   documents: Document[];
   dailyLogs: Record<string, DailyLog>; // key: YYYY-MM-DD
+  simCart?: SimCartData;
 }
+
+// ─── SimCart Types ────────────────────────────────────────────────────────────
+
+export type SimMealSlotType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+export interface SimFoodItem {
+  id: string;
+  name: string;
+}
+
+export interface SimMealItem {
+  id: string;
+  name: string;
+  quantity?: string;
+}
+
+export interface SimMealEntry {
+  id: string;
+  slotType: SimMealSlotType;
+  snackIndex?: number; // 1, 2, 3... for snacks
+  addedAt: string;     // ISO — when the slot button was pressed
+  items: SimMealItem[];
+  savedMealId?: string;
+}
+
+export interface SimSavedMeal {
+  id: string;
+  name: string;
+  items: SimMealItem[];
+  createdAt: string;
+}
+
+export interface SimDailyLog {
+  date: string; // YYYY-MM-DD
+  entries: SimMealEntry[]; // stored in display order
+}
+
+export interface SimCartData {
+  foodItems: SimFoodItem[];            // global food library (autocomplete)
+  savedMeals: SimSavedMeal[];          // named meal library
+  dailyLogs: Record<string, SimDailyLog>; // YYYY-MM-DD → log
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export type BugStatus = 'pending' | 'solved' | 'archived';
 
