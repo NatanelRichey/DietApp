@@ -12,13 +12,12 @@ interface Props {
   user: string
   data: UserData
   setData: (d: UserData) => void
-  loading: boolean
   onLogout: () => void
 }
 
 const DOUBLE_TAP_MS = 300
 
-const SimCartApp = ({ user, data, setData, loading, onLogout }: Props) => {
+const SimCartApp = ({ user, data, setData, onLogout }: Props) => {
   const [activeTab, setActiveTab] = useState<'today' | 'planner'>('today')
   const [currentTime, setCurrentTime] = useState(new Date())
   const [isBugReporterOpen, setIsBugReporterOpen] = useState(false)

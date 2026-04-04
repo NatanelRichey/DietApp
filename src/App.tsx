@@ -76,7 +76,6 @@ const App = () => {
         user={user}
         data={data}
         setData={setData}
-        loading={loading}
         onLogout={() => { setUser(null); sessionStorage.removeItem('diet-app-user') }}
       />
     )
