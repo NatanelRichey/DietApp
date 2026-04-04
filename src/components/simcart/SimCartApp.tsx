@@ -153,7 +153,7 @@ const SimCartApp = ({ user, data, setData, loading, onLogout }: Props) => {
             transition={{ duration: 0.18 }}
           >
             {activeTab === 'today' ? (
-              <SimDailyLogger simCart={simCart} onUpdate={updateSimCart} loading={loading} />
+              <SimDailyLogger simCart={simCart} onUpdate={updateSimCart} />
             ) : (
               <SimPlanner simCart={simCart} onUpdate={updateSimCart} />
             )}
