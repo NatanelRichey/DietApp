@@ -7,9 +7,10 @@ interface BugReporterProps {
   isOpen: boolean
   onClose: () => void
   user: string
+  initialScreenshot?: string | null
 }
 
-const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user }) => {
+const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initialScreenshot }) => {
   const [report, setReport] = useState('')
   const [screenshot, setScreenshot] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -36,12 +37,16 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user }) => {
     }
   }
 
-  // Auto-capture when modal opens
+  // Use pre-captured screenshot if provided, otherwise capture now
   useEffect(() => {
     if (isOpen) {
-      captureScreenshot()
       setReport('')
       setError(null)
+      if (initialScreenshot) {
+        setScreenshot(initialScreenshot)
+      } else {
+        captureScreenshot()
+      }
     }
   }, [isOpen])
 

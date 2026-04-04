@@ -61,12 +61,16 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
   }
 
   const updatePlan = (updatedPlan: DayPlan) => {
+    const syncedLogs: Record<string, typeof data.dailyLogs[string]> = {}
+    Object.entries(data.dailyLogs || {}).forEach(([key, log]) => {
+      if (log.planId === editingPlanId && !log.meals.some(m => m.completed)) {
+        syncedLogs[key] = { ...log, meals: updatedPlan.meals.map(m => ({ ...m, completed: false })) }
+      }
+    })
     setData({
       ...data,
-      dayPlans: {
-        ...data.dayPlans,
-        [editingPlanId]: updatedPlan
-      }
+      dayPlans: { ...data.dayPlans, [editingPlanId]: updatedPlan },
+      dailyLogs: { ...(data.dailyLogs || {}), ...syncedLogs }
     })
   }
 

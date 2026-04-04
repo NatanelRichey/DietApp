@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { LayoutDashboard, Scale, Utensils, Files, Clock, Calendar } from 'lucide-react'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
+import { toPng } from 'html-to-image'
 import Dashboard from './components/Dashboard'
 import WeightTracker from './components/WeightTracker'
 import MealPlanner from './components/MealPlanner'
@@ -23,6 +24,7 @@ const App = () => {
   const { data, setData, loading } = useDatabase(user, DEFAULT_DATA)
 
   const [isBugReporterOpen, setIsBugReporterOpen] = useState(false)
+  const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
 
   // Double-tap tracking for header gestures
   const lastLogoTapRef = useRef(0)
@@ -38,11 +40,17 @@ const App = () => {
     sessionStorage.setItem('diet-app-user', username)
   }
 
-  const handleLogoTap = () => {
+  const handleLogoTap = async () => {
     const now = Date.now()
     if (now - lastLogoTapRef.current < DOUBLE_TAP_MS) {
-      setIsBugReporterOpen(true)
       lastLogoTapRef.current = 0
+      try {
+        const dataUrl = await toPng(document.body, { quality: 0.8, pixelRatio: 1, skipFonts: true })
+        setPendingScreenshot(dataUrl)
+      } catch {
+        setPendingScreenshot(null)
+      }
+      setIsBugReporterOpen(true)
     } else {
       lastLogoTapRef.current = now
     }
@@ -201,8 +209,9 @@ const App = () => {
 
       <BugReporter
         isOpen={isBugReporterOpen}
-        onClose={() => setIsBugReporterOpen(false)}
+        onClose={() => { setIsBugReporterOpen(false); setPendingScreenshot(null) }}
         user={user || 'Guest'}
+        initialScreenshot={pendingScreenshot}
       />
     </div>
   )
