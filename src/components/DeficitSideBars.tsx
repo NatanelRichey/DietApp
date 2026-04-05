@@ -5,22 +5,38 @@ import { format, addDays, startOfDay, eachDayOfInterval, differenceInDays } from
 import type { UserData } from '../types'
 
 const TDEE = 2500
-const DIET_START = new Date('2026-04-03T12:00:00')
+const DIET_START = new Date('2026-04-03')
+const ISRAEL_TZ  = 'Asia/Jerusalem'
 const HARDCODED_CONSUMED: Record<string, number> = {
   '2026-04-03': 600,
   '2026-04-04': 1500,
 }
-const KG_THRESHOLD = 7700
+const KG_THRESHOLD    = 7700
 const MILESTONE_COLORS = ['#64FFDA', '#00BFFF', '#A855F7', '#FB7185', '#F59E0B']
 
 const toDateKey = (d: Date) => format(d, 'yyyy-MM-dd')
+
+const getIsraelTodayKey = () =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: ISRAEL_TZ }).format(new Date())
+
+// Fraction of 10am–10pm window elapsed in Israel time (0 before 10am, 1 at/after 10pm)
+const getElapsed = (): number => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: ISRAEL_TZ, hour: 'numeric', minute: 'numeric', second: 'numeric', hour12: false,
+  }).formatToParts(new Date())
+  const h = parseInt(parts.find(p => p.type === 'hour')?.value   ?? '0')
+  const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0')
+  const s = parseInt(parts.find(p => p.type === 'second')?.value ?? '0')
+  const secs = h * 3600 + m * 60 + s
+  return Math.max(0, Math.min(1, (secs - 36000) / 43200))
+}
 
 interface Props {
   data: UserData
 }
 
 const DeficitSideBars = ({ data }: Props) => {
-  const [now, setNow] = useState(new Date())
+  const [elapsed, setElapsed] = useState(getElapsed)
   const [dismissedDailyDate, setDismissedDailyDate] = useState(
     () => localStorage.getItem('deficit-banner-daily') || ''
   )
@@ -29,88 +45,89 @@ const DeficitSideBars = ({ data }: Props) => {
   )
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(timer)
+    const id = setInterval(() => setElapsed(getElapsed()), 1000)
+    return () => clearInterval(id)
   }, [])
 
-  const today = startOfDay(now)
-  const todayKey = toDateKey(today)
+  const israelTodayKey = getIsraelTodayKey()
 
-  // Cumulative deficit for all completed days before today
+  // Prior days cumulative deficit (all days before today, full value)
   const priorDeficit = useMemo(() => {
-    const dietStartDay = startOfDay(DIET_START)
-    const yesterday = addDays(today, -1)
-    if (differenceInDays(yesterday, dietStartDay) < 0) return 0
-    return eachDayOfInterval({ start: dietStartDay, end: yesterday }).reduce((total, d) => {
-      const key = toDateKey(d)
+    const dietStart  = startOfDay(DIET_START)
+    const yesterday  = addDays(startOfDay(new Date()), -1)
+    if (differenceInDays(yesterday, dietStart) < 0) return 0
+    return eachDayOfInterval({ start: dietStart, end: yesterday }).reduce((total, d) => {
+      const key      = toDateKey(d)
       const consumed = HARDCODED_CONSUMED[key] !== undefined
         ? HARDCODED_CONSUMED[key]
         : (data.dailyLogs?.[key]?.meals ?? []).filter(m => m.completed).reduce((s, m) => s + m.calories, 0)
       return total + Math.max(0, TDEE - consumed)
     }, 0)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [todayKey, data.dailyLogs])
+  }, [israelTodayKey, data.dailyLogs]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Today's consumed calories (live — updates as user checks meals)
-  const todayConsumed = (data.dailyLogs?.[todayKey]?.meals ?? [])
-    .filter(m => m.completed)
-    .reduce((s, m) => s + m.calories, 0)
+  // Today's consumed and max deficit
+  const todayConsumed   = (data.dailyLogs?.[israelTodayKey]?.meals ?? []).filter(m => m.completed).reduce((s, m) => s + m.calories, 0)
+  const todayMaxDeficit = Math.max(0, TDEE - todayConsumed)
 
-  const todayDeficit = Math.max(0, TDEE - todayConsumed)
-
-  // Today's planned total (used for daily bar target)
+  // Today's planned total (for daily bar 100% target)
   const todayTotalPlanned = useMemo(() => {
-    const log = data.dailyLogs?.[todayKey]
+    const log = data.dailyLogs?.[israelTodayKey]
     if (log) return log.meals.reduce((s, m) => s + m.calories, 0)
-    const dow = today.getDay()
+    const dow    = new Date().getDay()
     const planId = data.weekSchedule?.[dow] || data.activePlanId
-    const plan = data.dayPlans?.[planId]
-    return plan?.meals.reduce((s, m) => s + m.calories, 0) ?? 0
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [todayKey, data.dailyLogs, data.weekSchedule, data.activePlanId, data.dayPlans])
+    return data.dayPlans?.[planId]?.meals.reduce((s, m) => s + m.calories, 0) ?? 0
+  }, [israelTodayKey, data.dailyLogs, data.weekSchedule, data.activePlanId, data.dayPlans])
 
   const dailyGoalDeficit = Math.max(1, TDEE - todayTotalPlanned)
 
-  // 10am → 10pm animation factor (0 → 1)
-  const barStart = new Date(today.getTime() + 10 * 3600 * 1000)
-  const barEnd   = new Date(today.getTime() + 22 * 3600 * 1000)
-  const elapsed  = Math.max(0, Math.min(1,
-    (now.getTime() - barStart.getTime()) / (barEnd.getTime() - barStart.getTime())
-  ))
+  // Left bar — today's animated deficit vs daily goal
+  const dailyBarFill = Math.min(1, elapsed * todayMaxDeficit / dailyGoalDeficit)
+  const dailyPct     = Math.round(dailyBarFill * 100)
 
-  // Left bar — daily goal (today's animated deficit vs. daily goal deficit)
-  const dailyBarFill = Math.min(1, elapsed * todayDeficit / dailyGoalDeficit)
-
-  // Right bar — 1kg goal (prior + animated today, cycling per 7700 kcal)
-  const animatedTotal = priorDeficit + elapsed * todayDeficit
+  // Right bar — cumulative toward 7700 kcal (cycles each kg milestone)
+  const animatedTotal = priorDeficit + elapsed * todayMaxDeficit
   const kgMilestones  = Math.floor(animatedTotal / KG_THRESHOLD)
   const kgBarFill     = (animatedTotal % KG_THRESHOLD) / KG_THRESHOLD
+  const kgPct         = Math.round(kgBarFill * 100)
 
   const barColor = MILESTONE_COLORS[kgMilestones % MILESTONE_COLORS.length]
 
-  // Banner visibility
-  const showDailyBanner = dailyBarFill >= 1 && dismissedDailyDate !== todayKey
+  // Banners
+  const showDailyBanner = dailyBarFill >= 1 && dismissedDailyDate !== israelTodayKey
   const showKgBanner    = kgMilestones > 0 && kgMilestones > dismissedKgCount
 
   const dismissDaily = () => {
-    localStorage.setItem('deficit-banner-daily', todayKey)
-    setDismissedDailyDate(todayKey)
+    localStorage.setItem('deficit-banner-daily', israelTodayKey)
+    setDismissedDailyDate(israelTodayKey)
   }
-
   const dismissKg = () => {
     localStorage.setItem('deficit-banner-1kg', String(kgMilestones))
     setDismissedKgCount(kgMilestones)
   }
 
-  const barBase: React.CSSProperties = {
+  // Bar container (fixed vertical strip on left or right edge)
+  const barContainer = (side: 'left' | 'right'): React.CSSProperties => ({
     position: 'fixed',
     top: 58,
     bottom: 80,
-    width: 5,
-    background: 'rgba(255,255,255,0.06)',
-    borderRadius: 3,
-    overflow: 'hidden',
+    [side]: 0,
+    width: 22,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 4,
     zIndex: 500,
+  })
+
+  const trackStyle: React.CSSProperties = {
+    position: 'relative',
+    width: 12,
+    flex: 1,
+    background: 'rgba(255,255,255,0.07)',
+    borderRadius: 6,
+    overflow: 'hidden',
+    margin: '4px 0',
   }
 
   const fillStyle = (fill: number): React.CSSProperties => ({
@@ -119,10 +136,26 @@ const DeficitSideBars = ({ data }: Props) => {
     left: 0,
     right: 0,
     height: `${fill * 100}%`,
-    background: `linear-gradient(to top, ${barColor}99, ${barColor})`,
+    background: `linear-gradient(to top, ${barColor}88, ${barColor})`,
     transition: 'height 1s linear',
-    borderRadius: 3,
+    borderRadius: 6,
   })
+
+  const labelStyle: React.CSSProperties = {
+    fontSize: '0.55rem',
+    fontWeight: 700,
+    color: barColor,
+    letterSpacing: '0.03em',
+    lineHeight: 1.2,
+    textAlign: 'center',
+  }
+
+  const pctStyle: React.CSSProperties = {
+    fontSize: '0.5rem',
+    color: 'var(--text-muted)',
+    textAlign: 'center',
+    fontVariantNumeric: 'tabular-nums',
+  }
 
   const bannerBase: React.CSSProperties = {
     position: 'fixed',
@@ -130,7 +163,7 @@ const DeficitSideBars = ({ data }: Props) => {
     left: '0.75rem',
     right: '0.75rem',
     zIndex: 900,
-    background: 'rgba(16, 33, 62, 0.95)',
+    background: 'rgba(16, 33, 62, 0.96)',
     borderRadius: '1rem',
     padding: '1rem 1.1rem',
     backdropFilter: 'blur(16px)',
@@ -143,13 +176,21 @@ const DeficitSideBars = ({ data }: Props) => {
   return (
     <>
       {/* Left bar — Daily goal */}
-      <div style={{ ...barBase, left: 0 }}>
-        <div style={fillStyle(dailyBarFill)} />
+      <div style={barContainer('left')}>
+        <div style={pctStyle}>{dailyPct}%</div>
+        <div style={trackStyle}>
+          <div style={fillStyle(dailyBarFill)} />
+        </div>
+        <div style={labelStyle}>D<br/>A<br/>I<br/>L<br/>Y</div>
       </div>
 
       {/* Right bar — 1kg goal */}
-      <div style={{ ...barBase, right: 0 }}>
-        <div style={fillStyle(kgBarFill)} />
+      <div style={barContainer('right')}>
+        <div style={pctStyle}>{kgPct}%</div>
+        <div style={trackStyle}>
+          <div style={fillStyle(kgBarFill)} />
+        </div>
+        <div style={labelStyle}>1<br/>K<br/>G</div>
       </div>
 
       {/* Banners */}
@@ -165,17 +206,10 @@ const DeficitSideBars = ({ data }: Props) => {
           >
             <span style={{ fontSize: '1.4rem', lineHeight: 1 }}>🎯</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.95rem', marginBottom: '0.2rem' }}>
-                Daily goal reached!
-              </div>
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                You hit your deficit target for today. Keep it up!
-              </div>
+              <div style={{ fontWeight: 700, color: 'var(--primary)', fontSize: '0.95rem', marginBottom: '0.2rem' }}>Daily goal reached!</div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>You hit your deficit target for today. Keep it up!</div>
             </div>
-            <button
-              onClick={dismissDaily}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.1rem', display: 'flex', flexShrink: 0 }}
-            >
+            <button onClick={dismissDaily} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.1rem', display: 'flex', flexShrink: 0 }}>
               <X size={18} />
             </button>
           </motion.div>
@@ -192,17 +226,10 @@ const DeficitSideBars = ({ data }: Props) => {
           >
             <span style={{ fontSize: '1.4rem', lineHeight: 1 }}>🏆</span>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, color: barColor, fontSize: '0.95rem', marginBottom: '0.2rem' }}>
-                {kgMilestones} kg burned!
-              </div>
-              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                You've crossed {kgMilestones} × 7,700 kcal in deficit. Incredible!
-              </div>
+              <div style={{ fontWeight: 700, color: barColor, fontSize: '0.95rem', marginBottom: '0.2rem' }}>{kgMilestones} kg burned!</div>
+              <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>You've crossed {kgMilestones} × 7,700 kcal in deficit. Incredible!</div>
             </div>
-            <button
-              onClick={dismissKg}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.1rem', display: 'flex', flexShrink: 0 }}
-            >
+            <button onClick={dismissKg} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.1rem', display: 'flex', flexShrink: 0 }}>
               <X size={18} />
             </button>
           </motion.div>
