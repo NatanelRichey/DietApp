@@ -108,7 +108,7 @@ const DeficitSideBars = ({ data }: Props) => {
   // Bar container (fixed vertical strip on left or right edge)
   const barContainer = (side: 'left' | 'right'): React.CSSProperties => ({
     position: 'fixed',
-    top: 58,
+    top: 74,
     bottom: 80,
     [side]: 0,
     width: 22,
@@ -116,6 +116,7 @@ const DeficitSideBars = ({ data }: Props) => {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'flex-end',
+    paddingTop: 6,
     paddingBottom: 4,
     zIndex: 500,
   })
