@@ -93,6 +93,21 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
     updatePlan({ ...currentPlan, meals: updatedMeals })
   }
 
+  const deletePlanType = (planId: string) => {
+    const planCount = Object.keys(data.dayPlans).length
+    if (planCount <= 1) { alert('Cannot delete the only plan.'); return }
+    if (!confirm(`Delete plan "${planId}"? This cannot be undone.`)) return
+
+    const { [planId]: _removed, ...remainingPlans } = data.dayPlans
+    const newActivePlan = data.activePlanId === planId ? Object.keys(remainingPlans)[0] : data.activePlanId
+    const updatedSchedule = Object.fromEntries(
+      Object.entries(data.weekSchedule || {}).filter(([, pid]) => pid !== planId)
+    ) as Record<number, string>
+
+    setData({ ...data, dayPlans: remainingPlans, activePlanId: newActivePlan, weekSchedule: updatedSchedule })
+    setEditingPlanId(newActivePlan)
+  }
+
   const renameDayType = (oldName: string) => {
     const newName = prompt('Enter new name:', oldName)
     if (!newName || newName === oldName) return
@@ -166,12 +181,20 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Info size={18} color="var(--primary)" /> Guidelines for {editingPlanId}
           </div>
-          <button
-            onClick={() => renameDayType(editingPlanId)}
-            style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600 }}
-          >
-            <Edit2 size={14} /> Rename
-          </button>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button
+              onClick={() => renameDayType(editingPlanId)}
+              style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600 }}
+            >
+              <Edit2 size={14} /> Rename
+            </button>
+            <button
+              onClick={() => deletePlanType(editingPlanId)}
+              style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600 }}
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          </div>
         </h3>
         <textarea
           value={currentPlan.guidelines}

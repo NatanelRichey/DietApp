@@ -39,6 +39,25 @@ const loadLocal = (user: string): UserData | null => {
   } catch { return null }
 }
 
+// Deep merge: union of both datasets, local wins on conflicts.
+// Prevents cloud fetch from overwriting locally-added plans/schedule.
+const mergeUserData = (local: UserData, cloud: UserData): UserData => ({
+  ...cloud,
+  ...local,
+  dayPlans:      { ...cloud.dayPlans,      ...local.dayPlans },
+  weekSchedule:  { ...cloud.weekSchedule,  ...local.weekSchedule },
+  dailyLogs:     { ...cloud.dailyLogs,     ...local.dailyLogs },
+  weightHistory: local.weightHistory?.length ? local.weightHistory : (cloud.weightHistory ?? []),
+  documents:     local.documents?.length     ? local.documents     : (cloud.documents     ?? []),
+  simCart: {
+    ...(cloud.simCart ?? {}),
+    ...(local.simCart ?? {}),
+    foodItems:  local.simCart?.foodItems?.length  ? local.simCart.foodItems  : (cloud.simCart?.foodItems  ?? []),
+    savedMeals: local.simCart?.savedMeals?.length ? local.simCart.savedMeals : (cloud.simCart?.savedMeals ?? []),
+    dailyLogs:  { ...(cloud.simCart?.dailyLogs ?? {}), ...(local.simCart?.dailyLogs ?? {}) },
+  },
+})
+
 const useDatabase = (user: string | null, initialData: UserData) => {
   const initialDataRef = useRef<UserData>(initialData)
 
@@ -112,10 +131,14 @@ const useDatabase = (user: string | null, initialData: UserData) => {
         if (!cancelled && response.ok) {
           const cloudData = await response.json()
           if (cloudData && typeof cloudData === 'object' && !cloudData.error) {
-            const merged = { ...initialDataRef.current, ...cloudData }
+            // Re-read localStorage fresh (may have changed since fetch started)
+            const currentLocal = loadLocal(user)
+            const merged = currentLocal
+              ? mergeUserData(currentLocal, cloudData)
+              : { ...initialDataRef.current, ...cloudData }
             if (!cancelled) {
               setData(merged)
-              saveLocal(user, merged) // Keep local cache in sync with cloud
+              saveLocal(user, merged)
             }
           }
           // If cloudData is null, keep localStorage data (already set above)
