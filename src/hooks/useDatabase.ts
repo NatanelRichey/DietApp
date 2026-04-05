@@ -58,6 +58,8 @@ const mergeUserData = (local: UserData, cloud: UserData): UserData => ({
   },
 })
 
+export type CloudSyncStatus = 'idle' | 'saving' | 'saved' | 'error'
+
 const useDatabase = (user: string | null, initialData: UserData) => {
   const initialDataRef = useRef<UserData>(initialData)
 
@@ -71,20 +73,27 @@ const useDatabase = (user: string | null, initialData: UserData) => {
   })
 
   const [loading, setLoading] = useState(true)
+  const [syncStatus, setSyncStatus] = useState<CloudSyncStatus>('idle')
   const pendingSaveRef = useRef<UserData | null>(null)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const saveToCloud = useCallback(async (updatedData: UserData) => {
     if (!user) return
     pendingSaveRef.current = null
+    setSyncStatus('saving')
     try {
-      await fetch(`/api/data?user=${user.toLowerCase()}`, {
+      const res = await fetch(`/api/data?user=${user.toLowerCase()}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedData)
       })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setSyncStatus('saved')
+      // Reset to idle after 2s
+      setTimeout(() => setSyncStatus(s => s === 'saved' ? 'idle' : s), 2000)
     } catch (error) {
       console.error('Cloud save error:', error)
+      setSyncStatus('error')
     }
   }, [user])
 
@@ -139,6 +148,8 @@ const useDatabase = (user: string | null, initialData: UserData) => {
             if (!cancelled) {
               setData(merged)
               saveLocal(user, merged)
+              // Push merged result to cloud so local-only data gets backed up
+              saveToCloud(merged)
             }
           }
           // If cloudData is null, keep localStorage data (already set above)
@@ -167,7 +178,7 @@ const useDatabase = (user: string | null, initialData: UserData) => {
     }, 400)
   }, [saveToCloud, user])
 
-  return { data, setData: updateData, loading }
+  return { data, setData: updateData, loading, syncStatus }
 }
 
 export { DEFAULT_DATA }

@@ -23,7 +23,7 @@ const App = () => {
   const [page, setPage] = useState<'app' | 'bugadmin'>('app')
 
   // Single shared database instance — all tabs read/write the same state
-  const { data, setData, loading } = useDatabase(user, DEFAULT_DATA)
+  const { data, setData, loading, syncStatus } = useDatabase(user, DEFAULT_DATA)
 
   const [isBugReporterOpen, setIsBugReporterOpen] = useState(false)
   const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
@@ -121,6 +121,17 @@ const App = () => {
             {format(currentTime, 'EEE, d MMM')}
           </div>
         </div>
+
+        {/* Cloud sync status dot */}
+        {syncStatus === 'saving' && (
+          <div title="Saving…" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--secondary)', opacity: 0.7, flexShrink: 0 }} />
+        )}
+        {syncStatus === 'saved' && (
+          <div title="Saved to cloud" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
+        )}
+        {syncStatus === 'error' && (
+          <div title="Cloud save failed — data is safe locally" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-pink)', flexShrink: 0 }} />
+        )}
 
         {/* Clock — double-tap opens bug admin page */}
         <div
