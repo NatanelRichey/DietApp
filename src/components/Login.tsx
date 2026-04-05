@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { ChevronLeft, Delete, Edit2, Check, X } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { ChevronLeft, Edit2, Check } from 'lucide-react'
 
 interface AppUser {
   name: string
@@ -25,14 +25,15 @@ const avatarColors = [
 ]
 
 const Login = ({ onLogin }: LoginProps) => {
-  const [users, setUsers] = useState<AppUser[]>([])
+  const [users, setUsers]           = useState<AppUser[]>([])
   const [loadingUsers, setLoadingUsers] = useState(true)
-  const [phase, setPhase] = useState<Phase>('select')
+  const [phase, setPhase]           = useState<Phase>('select')
   const [selectedUser, setSelectedUser] = useState<AppUser | null>(null)
-  const [pin, setPin] = useState('')
-  const [shake, setShake] = useState(false)
+  const [pin, setPin]               = useState('')
   const [editNewPin, setEditNewPin] = useState('')
+  const [shake, setShake]           = useState(false)
   const [editSaving, setEditSaving] = useState(false)
+  const pinInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch('/api/users')
@@ -41,62 +42,69 @@ const Login = ({ onLogin }: LoginProps) => {
       .catch(() => { setUsers(FALLBACK_USERS); setLoadingUsers(false) })
   }, [])
 
+  // Auto-focus hidden input whenever we enter a PIN phase (brings up native keyboard)
+  useEffect(() => {
+    if (phase !== 'select') {
+      const t = setTimeout(() => pinInputRef.current?.focus(), 120)
+      return () => clearTimeout(t)
+    }
+  }, [phase])
+
   const triggerShake = () => {
     setShake(true)
-    setTimeout(() => { setShake(false); setPin('') }, 600)
+    setTimeout(() => {
+      setShake(false)
+      setPin('')
+      if (pinInputRef.current) { pinInputRef.current.value = ''; pinInputRef.current.focus() }
+    }, 600)
   }
 
-  const handleDigit = (d: string) => {
-    if (shake) return
-    const activePin = phase === 'editNewPin' ? editNewPin : phase === 'editConfirmPin' ? pin : pin
-    if (activePin.length >= 4) return
+  const handlePinInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (shake) { e.target.value = activePinDisplay; return }
+    const raw = e.target.value.replace(/\D/g, '').slice(0, 4)
 
     if (phase === 'pin') {
-      const next = pin + d
-      setPin(next)
-      if (next.length === 4) {
+      setPin(raw)
+      if (raw.length === 4) {
         setTimeout(() => {
-          if (next === selectedUser?.pin) {
+          if (raw === selectedUser?.pin) {
             onLogin(selectedUser.name)
           } else {
+            if (pinInputRef.current) pinInputRef.current.value = ''
             triggerShake()
           }
         }, 80)
       }
     } else if (phase === 'editNewPin') {
-      const next = editNewPin + d
-      setEditNewPin(next)
-      if (next.length === 4) {
-        // Move to confirm phase
-        setTimeout(() => setPhase('editConfirmPin'), 80)
-        setPin('')
+      setEditNewPin(raw)
+      if (raw.length === 4) {
+        setTimeout(() => {
+          setPhase('editConfirmPin')
+          setPin('')
+          if (pinInputRef.current) { pinInputRef.current.value = ''; pinInputRef.current.focus() }
+        }, 80)
       }
     } else if (phase === 'editConfirmPin') {
-      const next = pin + d
-      setPin(next)
-      if (next.length === 4) {
+      setPin(raw)
+      if (raw.length === 4) {
         setTimeout(async () => {
-          if (next === editNewPin) {
-            // Save new PIN
+          if (raw === editNewPin) {
             setEditSaving(true)
             try {
               const res = await fetch('/api/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ action: 'edit', name: selectedUser?.name, pin: next })
+                body: JSON.stringify({ action: 'edit', name: selectedUser?.name, pin: raw }),
               })
               const updated = await res.json()
               setUsers(Array.isArray(updated) ? updated : users)
             } catch {
-              // Fallback: update local state only
-              setUsers(prev => prev.map(u => u.name === selectedUser?.name ? { ...u, pin: next } : u))
+              setUsers(prev => prev.map(u => u.name === selectedUser?.name ? { ...u, pin: raw } : u))
             }
             setEditSaving(false)
-            setPhase('select')
-            setSelectedUser(null)
-            setPin('')
-            setEditNewPin('')
+            goBack()
           } else {
+            if (pinInputRef.current) pinInputRef.current.value = ''
             triggerShake()
           }
         }, 80)
@@ -104,15 +112,10 @@ const Login = ({ onLogin }: LoginProps) => {
     }
   }
 
-  const handleBackspace = () => {
-    if (shake) return
-    if (phase === 'pin' || phase === 'editConfirmPin') setPin(p => p.slice(0, -1))
-    else if (phase === 'editNewPin') setEditNewPin(p => p.slice(0, -1))
-  }
-
   const selectUser = (user: AppUser) => {
     setSelectedUser(user)
     setPin('')
+    setEditNewPin('')
     setPhase('pin')
   }
 
@@ -121,40 +124,30 @@ const Login = ({ onLogin }: LoginProps) => {
     setSelectedUser(null)
     setPin('')
     setEditNewPin('')
+    if (pinInputRef.current) pinInputRef.current.value = ''
   }
 
   const startEdit = () => {
     setPin('')
     setEditNewPin('')
     setPhase('editNewPin')
+    if (pinInputRef.current) pinInputRef.current.value = ''
   }
 
-  // Which pin string to display in dots
   const activePinDisplay = phase === 'editNewPin' ? editNewPin : pin
+  const avatarIdx = users.findIndex(u => u.name === selectedUser?.name)
 
-  const pinLabel = phase === 'editNewPin'
-    ? 'Enter new PIN'
-    : phase === 'editConfirmPin'
-    ? 'Confirm new PIN'
-    : `Welcome, ${selectedUser?.name}`
-
-  // Number pad layout
-  const pad = ['1','2','3','4','5','6','7','8','9']
+  const pinLabel =
+    phase === 'editNewPin'     ? 'Enter new PIN' :
+    phase === 'editConfirmPin' ? 'Confirm new PIN' :
+                                 `Welcome, ${selectedUser?.name}`
 
   return (
     <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100vh',
-      width: '100vw',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      height: '100dvh', width: '100vw',
       background: 'var(--bg-deep)',
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      zIndex: 2000,
-      overflowY: 'auto'
+      position: 'fixed', top: 0, left: 0, zIndex: 2000, overflowY: 'auto',
     }}>
       <style>{`
         @keyframes shake {
@@ -167,46 +160,37 @@ const Login = ({ onLogin }: LoginProps) => {
         .pin-shake { animation: shake 0.5s ease; }
       `}</style>
 
-      {/* ── User selection screen ── */}
+      {/* ── User selection ── */}
       {phase === 'select' && (
-        <div className="animate-fade-in" style={{ width: '90%', maxWidth: '380px', display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'center' }}>
+        <div style={{ width: '90%', maxWidth: '380px', display: 'flex', flexDirection: 'column', gap: '2rem', alignItems: 'center' }}>
           <div style={{ textAlign: 'center' }}>
             <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }} className="text-gradient">DietApp</h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.4rem' }}>Who's logging in?</p>
           </div>
-
           {loadingUsers ? (
             <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Loading…</div>
           ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'center', width: '100%' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', justifyContent: 'center', width: '100%' }}>
               {users.map((user, idx) => (
-                <div key={user.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                <div key={user.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.55rem' }}>
                   <button
                     onClick={() => selectUser(user)}
                     style={{
-                      width: '90px',
-                      height: '90px',
-                      borderRadius: '28px',
+                      width: '90px', height: '90px', borderRadius: '28px',
                       background: avatarColors[idx % avatarColors.length],
-                      border: 'none',
-                      cursor: 'pointer',
-                      fontSize: '2.2rem',
-                      fontWeight: 800,
-                      color: 'white',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      border: 'none', cursor: 'pointer',
+                      fontSize: '2.2rem', fontWeight: 800, color: 'white',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                       boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-                      transition: 'transform 0.15s ease, box-shadow 0.15s ease'
+                      transition: 'transform 0.15s ease',
+                      WebkitTapHighlightColor: 'transparent',
                     }}
-                    onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.94)')}
-                    onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
-                    onTouchStart={e => (e.currentTarget.style.transform = 'scale(0.94)')}
+                    onTouchStart={e => (e.currentTarget.style.transform = 'scale(0.93)')}
                     onTouchEnd={e => (e.currentTarget.style.transform = 'scale(1)')}
                   >
                     {user.name[0].toUpperCase()}
                   </button>
-                  <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-main)' }}>{user.name}</span>
+                  <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{user.name}</span>
                 </div>
               ))}
             </div>
@@ -214,11 +198,11 @@ const Login = ({ onLogin }: LoginProps) => {
         </div>
       )}
 
-      {/* ── PIN entry / Edit screens ── */}
-      {(phase === 'pin' || phase === 'editNewPin' || phase === 'editConfirmPin') && (
-        <div className="animate-fade-in" style={{ width: '100%', maxWidth: '340px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', padding: '0 1.5rem' }}>
+      {/* ── PIN entry ── */}
+      {phase !== 'select' && (
+        <div style={{ width: '100%', maxWidth: '320px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem', padding: '0 1.5rem' }}>
 
-          {/* Back button */}
+          {/* Back */}
           <button
             onClick={goBack}
             style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', padding: 0 }}
@@ -227,24 +211,16 @@ const Login = ({ onLogin }: LoginProps) => {
           </button>
 
           {/* Avatar + label */}
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.8rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
             <div style={{
-              width: '72px',
-              height: '72px',
-              borderRadius: '22px',
-              background: avatarColors[users.findIndex(u => u.name === selectedUser?.name) % avatarColors.length] || avatarColors[0],
-              fontSize: '1.8rem',
-              fontWeight: 800,
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
+              width: '72px', height: '72px', borderRadius: '22px',
+              background: avatarColors[avatarIdx >= 0 ? avatarIdx % avatarColors.length : 0],
+              fontSize: '1.8rem', fontWeight: 800, color: 'white',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
               {selectedUser?.name[0].toUpperCase()}
             </div>
-            <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-main)', textAlign: 'center' }}>
-              {pinLabel}
-            </div>
+            <div style={{ fontWeight: 700, fontSize: '1.1rem', textAlign: 'center' }}>{pinLabel}</div>
             {(phase === 'editNewPin' || phase === 'editConfirmPin') && (
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                 {phase === 'editNewPin' ? 'Choose a 4-digit PIN' : 'Re-enter to confirm'}
@@ -252,120 +228,67 @@ const Login = ({ onLogin }: LoginProps) => {
             )}
           </div>
 
-          {/* PIN dots */}
-          <div
-            className={shake ? 'pin-shake' : ''}
-            style={{ display: 'flex', gap: '1rem' }}
-          >
-            {[0,1,2,3].map(i => (
-              <div key={i} style={{
-                width: '18px',
-                height: '18px',
-                borderRadius: '6px',
-                border: `2px solid ${shake ? 'var(--accent-pink)' : 'var(--primary)'}`,
-                background: activePinDisplay.length > i
-                  ? (shake ? 'var(--accent-pink)' : 'var(--primary)')
-                  : 'transparent',
-                transition: 'background 0.15s ease, border-color 0.15s ease'
-              }} />
-            ))}
+          {/* PIN dots + hidden native input */}
+          <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.2rem' }}>
+            {/* Dots */}
+            <div
+              className={shake ? 'pin-shake' : ''}
+              style={{ display: 'flex', gap: '1.1rem', padding: '1rem 2rem' }}
+              onClick={() => pinInputRef.current?.focus()}
+            >
+              {[0, 1, 2, 3].map(i => (
+                <div key={i} style={{
+                  width: '18px', height: '18px',
+                  borderRadius: '50%',
+                  border: `2.5px solid ${shake ? 'var(--accent-pink)' : 'var(--primary)'}`,
+                  background: activePinDisplay.length > i
+                    ? (shake ? 'var(--accent-pink)' : 'var(--primary)')
+                    : 'transparent',
+                  transition: 'background 0.12s ease, transform 0.12s ease',
+                  transform: activePinDisplay.length === i + 1 ? 'scale(1.15)' : 'scale(1)',
+                }} />
+              ))}
+            </div>
+
+            {/* Hidden input — triggers native keyboard */}
+            <input
+              ref={pinInputRef}
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="one-time-code"
+              onChange={handlePinInput}
+              style={{
+                position: 'absolute',
+                top: 0, left: 0, width: '100%', height: '100%',
+                opacity: 0,
+                fontSize: '16px', // prevents iOS auto-zoom
+                border: 'none', background: 'transparent',
+                color: 'transparent', caretColor: 'transparent',
+                zIndex: 1,
+              }}
+            />
           </div>
 
-          {/* Number pad */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.8rem', width: '100%' }}>
-            {pad.map(d => (
-              <button
-                key={d}
-                onClick={() => handleDigit(d)}
-                style={{
-                  height: '62px',
-                  borderRadius: '16px',
-                  background: 'rgba(255,255,255,0.07)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  color: 'var(--text-main)',
-                  fontSize: '1.5rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'background 0.1s ease',
-                  WebkitTapHighlightColor: 'transparent'
-                }}
-                onMouseDown={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
-                onMouseUp={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-                onTouchStart={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
-                onTouchEnd={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-              >
-                {d}
-              </button>
-            ))}
+          {/* Tap to type hint */}
+          <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+            Tap the dots to open keypad
+          </p>
 
-            {/* Bottom row: Edit | 0 | Backspace */}
+          {/* Edit PIN link (only in normal pin phase) */}
+          {phase === 'pin' && (
             <button
-              onClick={phase === 'pin' ? startEdit : goBack}
+              onClick={startEdit}
               style={{
-                height: '62px',
-                borderRadius: '16px',
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-muted)',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.2rem',
-                WebkitTapHighlightColor: 'transparent'
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--text-muted)', fontSize: '0.8rem',
+                display: 'flex', alignItems: 'center', gap: '0.35rem',
+                WebkitTapHighlightColor: 'transparent',
               }}
             >
-              {phase === 'pin' ? (
-                <><Edit2 size={16} /><span>Edit PIN</span></>
-              ) : (
-                <><X size={16} /><span>Cancel</span></>
-              )}
+              <Edit2 size={13} /> Change PIN
             </button>
-
-            <button
-              onClick={() => handleDigit('0')}
-              style={{
-                height: '62px',
-                borderRadius: '16px',
-                background: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                color: 'var(--text-main)',
-                fontSize: '1.5rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'background 0.1s ease',
-                WebkitTapHighlightColor: 'transparent'
-              }}
-              onMouseDown={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
-              onMouseUp={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-              onTouchStart={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.15)')}
-              onTouchEnd={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
-            >
-              0
-            </button>
-
-            <button
-              onClick={handleBackspace}
-              style={{
-                height: '62px',
-                borderRadius: '16px',
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-muted)',
-                fontSize: '1.3rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                WebkitTapHighlightColor: 'transparent'
-              }}
-            >
-              <Delete size={22} />
-            </button>
-          </div>
+          )}
 
           {editSaving && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary)', fontSize: '0.85rem' }}>
