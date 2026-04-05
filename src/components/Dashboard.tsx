@@ -43,6 +43,7 @@ interface DashboardProps {
 const Dashboard = ({ data, setData, loading }: DashboardProps) => {
   const [viewDate, setViewDate] = useState(new Date())
   const [deficitExpanded, setDeficitExpanded] = useState(false)
+  const [journeyExpanded, setJourneyExpanded] = useState(false)
   const [elapsed, setElapsed] = useState(getElapsed)
   const dateInputRef = useRef<HTMLInputElement>(null)
   const seededRef   = useRef(false)
@@ -153,6 +154,35 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
     return count
   }, [daysOnDiet, data.weekSchedule, data.activePlanId, data.dayPlans])
 
+  // Fast-day detection for the currently viewed day
+  const isFastViewDay = /fast/i.test(data.dayPlans?.[currentLog.planId]?.type ?? currentLog.planId ?? '')
+  // On fast days progress bar is always full (0 eaten out of 0 target = goal met)
+  const displayProgress = isFastViewDay ? 100 : progress
+
+  // ── Upcoming days for Diet Journey table ─────────────────────────────────────
+  const upcomingDays = useMemo(() => {
+    const rows: { date: Date; label: string; labelColor: string; calories: number }[] = []
+    let d = addDays(startOfDay(new Date()), 0) // start from today
+    const end = startOfDay(MILESTONE_DATE)
+    while (d <= end) {
+      const dow    = d.getDay()
+      const planId = data.weekSchedule?.[dow] || data.activePlanId
+      const plan   = data.dayPlans?.[planId]
+      const type   = plan?.type ?? planId ?? ''
+      const calories = plan?.meals.reduce((s, m) => s + m.calories, 0) ?? 0
+      const isFast     = /fast/i.test(type)
+      const isShabbat  = dow === 6
+      const isErevShab = dow === 5 && !isFast
+      let label = 'Regular', labelColor = 'var(--text-muted)'
+      if (isFast)       { label = 'Fast';         labelColor = '#FB7185' }
+      else if (isErevShab) { label = 'Erev Shabbat'; labelColor = '#A855F7' }
+      else if (isShabbat)  { label = 'Shabbat';      labelColor = '#00BFFF' }
+      rows.push({ date: d, label, labelColor, calories })
+      d = addDays(d, 1)
+    }
+    return rows
+  }, [daysOnDiet, data.weekSchedule, data.activePlanId, data.dayPlans])
+
   // ── Calorie deficit (Task 5 — today's portion animates 10am→10pm, Israel time) ─
   const israelTodayKey = getIsraelTodayKey()
   const todayConsumed = isToday
@@ -198,13 +228,19 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', touchAction: 'pan-y' }}>
 
       {/* ── Diet Journey Card ── */}
-      <div className="glass" style={{ padding: '1.1rem 1.2rem' }}>
+      <div
+        className="glass"
+        style={{ padding: '1.1rem 1.2rem', cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}
+        onClick={() => setJourneyExpanded(v => !v)}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.75rem' }}>
           <Calendar size={14} color="var(--primary)" />
           <span style={{ fontWeight: 700, fontSize: '0.78rem', color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Diet Journey
           </span>
-          <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--text-muted)' }}>→ May 21</span>
+          <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>
+            {journeyExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.6rem' }}>
           <div>
@@ -238,6 +274,47 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
             </span>
           </div>
         </div>
+
+        {/* Collapsible upcoming-days table */}
+        {journeyExpanded && (
+          <div
+            style={{ marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.9rem' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header row */}
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: '0.25rem', marginBottom: '0.4rem' }}>
+              {['Date', 'Type', 'kcal'].map(h => (
+                <div key={h} style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</div>
+              ))}
+            </div>
+            {/* Scrollable rows — fixed height */}
+            <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+              {upcomingDays.map((row, i) => {
+                const isViewingDay = isSameDay(row.date, new Date())
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: '0.25rem',
+                      padding: '0.32rem 0',
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      background: isViewingDay ? 'rgba(100,255,218,0.04)' : 'transparent',
+                      borderRadius: isViewingDay ? '0.3rem' : 0,
+                    }}
+                  >
+                    <div style={{ fontSize: '0.75rem', fontWeight: isViewingDay ? 700 : 400, color: isViewingDay ? 'var(--primary)' : 'var(--text-main)' }}>
+                      {format(row.date, 'EEE d MMM')}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: row.labelColor, fontWeight: 600 }}>{row.label}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                      {row.calories > 0 ? row.calories.toLocaleString() : '—'}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Calorie Deficit Card (Task 5 — expandable breakdown) ── */}
@@ -370,19 +447,30 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.7rem' }}>
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>
-              {isToday ? 'Consumed today' : 'Consumed that day'}
+              {isFastViewDay ? 'Fasting day' : isToday ? 'Consumed today' : 'Consumed that day'}
             </div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 800 }}>
-              {consumedCalories} <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>kcal</span>
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: isFastViewDay ? '#FB7185' : 'inherit' }}>
+              {isFastViewDay ? '0' : consumedCalories}
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '0.3rem' }}>kcal</span>
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Daily target</div>
-            <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--primary)' }}>{totalCalories}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{isFastViewDay ? 'Full deficit' : 'Daily target'}</div>
+            <div style={{ fontSize: '1rem', fontWeight: 700, color: isFastViewDay ? '#FB7185' : 'var(--primary)' }}>
+              {isFastViewDay ? `${TDEE} kcal` : totalCalories}
+            </div>
           </div>
         </div>
         <div style={{ height: '8px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${Math.min(progress, 100)}%`, background: 'linear-gradient(90deg, var(--primary), var(--secondary))', borderRadius: '4px', transition: 'width 0.4s ease-out' }} />
+          <div style={{
+            height: '100%',
+            width: `${Math.min(displayProgress, 100)}%`,
+            background: isFastViewDay
+              ? 'linear-gradient(90deg, #FB7185, #F59E0B)'
+              : 'linear-gradient(90deg, var(--primary), var(--secondary))',
+            borderRadius: '4px',
+            transition: 'width 0.4s ease-out',
+          }} />
         </div>
       </div>
 

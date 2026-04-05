@@ -15,6 +15,12 @@ const BugAdmin: React.FC<BugAdminProps> = ({ onClose }) => {
   const [filter, setFilter]       = useState<'pending' | 'solved'>('pending')
   const [resolving, setResolving] = useState<string | null>(null)
 
+  // Local overrides persist status across re-opens even if server hasn't updated yet
+  const [statusOverrides, setStatusOverrides] = useState<Record<string, BugStatus>>(() => {
+    try { return JSON.parse(localStorage.getItem('bug-admin-overrides') || '{}') }
+    catch { return {} }
+  })
+
   const fetchBugs = async () => {
     setLoading(true)
     try {
@@ -32,16 +38,18 @@ const BugAdmin: React.FC<BugAdminProps> = ({ onClose }) => {
   const updateBugStatus = async (id: string, status: BugStatus, e?: React.MouseEvent) => {
     e?.stopPropagation()
     setResolving(id)
+    // Apply locally immediately and persist override so it survives re-opens
+    const newOverrides = { ...statusOverrides, [id]: status }
+    setStatusOverrides(newOverrides)
+    localStorage.setItem('bug-admin-overrides', JSON.stringify(newOverrides))
+    setBugs(prev => prev.map(b => b.id === id ? { ...b, status } : b))
+    if (selectedBug?.id === id) setSelectedBug(prev => prev ? { ...prev, status } : null)
     try {
-      const res = await fetch('/api/bugs', {
+      await fetch('/api/bugs', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status }),
       })
-      if (res.ok) {
-        setBugs(prev => prev.map(b => b.id === id ? { ...b, status } : b))
-        if (selectedBug?.id === id) setSelectedBug(prev => prev ? { ...prev, status } : null)
-      }
     } catch (err) {
       console.error('Update bug status error:', err)
     } finally {
@@ -49,7 +57,9 @@ const BugAdmin: React.FC<BugAdminProps> = ({ onClose }) => {
     }
   }
 
-  const filteredBugs = bugs.filter(b => b.status === filter)
+  // Merge server data with local overrides
+  const displayBugs = bugs.map(b => ({ ...b, status: (statusOverrides[b.id] as BugStatus) ?? b.status }))
+  const filteredBugs = displayBugs.filter(b => b.status === filter)
   const isDetail = selectedBug !== null
 
   return (
@@ -139,7 +149,7 @@ const BugAdmin: React.FC<BugAdminProps> = ({ onClose }) => {
                   }}
                 >
                   {f === 'pending' ? <Clock size={15} /> : <Archive size={15} />}
-                  {f === 'pending' ? 'Active' : 'Solved'} ({bugs.filter(b => b.status === f).length})
+                  {f === 'pending' ? 'Active' : 'Solved'} ({displayBugs.filter(b => b.status === f).length})
                 </button>
               ))}
             </div>

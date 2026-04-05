@@ -80,8 +80,16 @@ const DeficitSideBars = ({ data }: Props) => {
 
   const dailyGoalDeficit = Math.max(1, TDEE - todayTotalPlanned)
 
-  // Left bar — today's animated deficit vs daily goal
-  const dailyBarFill = Math.min(1, elapsed * todayMaxDeficit / dailyGoalDeficit)
+  // Detect if today is a fast day (full deficit from start of day)
+  const isTodayFast = (() => {
+    const dow    = new Date().getDay()
+    const planId = data.weekSchedule?.[dow] || data.activePlanId
+    const type   = data.dayPlans?.[planId]?.type ?? planId ?? ''
+    return /fast/i.test(type)
+  })()
+
+  // Left bar — today's animated deficit vs daily goal (fast day = full immediately)
+  const dailyBarFill = isTodayFast ? 1 : Math.min(1, elapsed * todayMaxDeficit / dailyGoalDeficit)
   const dailyPct     = Math.round(dailyBarFill * 100)
 
   // Right bar — cumulative toward 7700 kcal (cycles each kg milestone)

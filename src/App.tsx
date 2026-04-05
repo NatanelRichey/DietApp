@@ -160,7 +160,7 @@ const App = () => {
       </header>
 
       {/* Scrollable main */}
-      <main className="page-scroll" style={{ paddingBottom: '5.5rem', paddingLeft: activeTab === 'dashboard' ? '1.8rem' : undefined, paddingRight: activeTab === 'dashboard' ? '1.8rem' : undefined }}>
+      <main className="page-scroll" style={{ paddingBottom: '5.5rem', paddingLeft: '1.8rem', paddingRight: '1.8rem' }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -221,7 +221,7 @@ const App = () => {
         ))}
       </nav>
 
-      {activeTab === 'dashboard' && <DeficitSideBars data={data} />}
+      <DeficitSideBars data={data} />
 
       <BugReporter
         isOpen={isBugReporterOpen}
