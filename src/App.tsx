@@ -160,7 +160,7 @@ const App = () => {
       </header>
 
       {/* Scrollable main */}
-      <main className="page-scroll" style={{ paddingBottom: '5.5rem' }}>
+      <main className="page-scroll" style={{ paddingBottom: '5.5rem', paddingLeft: activeTab === 'dashboard' ? '1.8rem' : undefined, paddingRight: activeTab === 'dashboard' ? '1.8rem' : undefined }}>
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
