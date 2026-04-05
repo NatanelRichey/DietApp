@@ -11,6 +11,7 @@ import Login from './components/Login'
 import BugReporter from './components/BugReporter'
 import BugAdmin from './components/BugAdmin'
 import SimCartApp from './components/simcart/SimCartApp'
+import DeficitSideBars from './components/DeficitSideBars'
 import useDatabase, { DEFAULT_DATA } from './hooks/useDatabase'
 
 const DOUBLE_TAP_MS = 300
@@ -219,6 +220,8 @@ const App = () => {
           </button>
         ))}
       </nav>
+
+      {activeTab === 'dashboard' && <DeficitSideBars data={data} />}
 
       <BugReporter
         isOpen={isBugReporterOpen}
