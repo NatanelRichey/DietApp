@@ -73,25 +73,6 @@ const DeficitSideBars = ({ user, data }: Props) => {
   const todayConsumed   = (data.dailyLogs?.[israelTodayKey]?.meals ?? []).filter(m => m.completed).reduce((s, m) => s + m.calories, 0)
   const todayMaxDeficit = Math.max(0, TDEE - todayConsumed)
 
-  // Today's planned total (for daily bar 100% target)
-  const todayTotalPlanned = useMemo(() => {
-    const log = data.dailyLogs?.[israelTodayKey]
-    if (log) return log.meals.reduce((s, m) => s + m.calories, 0)
-    const dow    = new Date().getDay()
-    const planId = data.weekSchedule?.[dow] || data.activePlanId
-    return data.dayPlans?.[planId]?.meals.reduce((s, m) => s + m.calories, 0) ?? 0
-  }, [israelTodayKey, data.dailyLogs, data.weekSchedule, data.activePlanId, data.dayPlans])
-
-  const dailyGoalDeficit = Math.max(1, TDEE - todayTotalPlanned)
-
-  // Detect if today is a fast day (full deficit from start of day)
-  const isTodayFast = (() => {
-    const dow    = new Date().getDay()
-    const planId = data.weekSchedule?.[dow] || data.activePlanId
-    const type   = data.dayPlans?.[planId]?.type ?? planId ?? ''
-    return /fast/i.test(type)
-  })()
-
   // Left bar — fraction of 10am–10pm window elapsed (always time-based)
   const dailyBarFill = elapsed
   const dailyPct     = Math.round(dailyBarFill * 100)

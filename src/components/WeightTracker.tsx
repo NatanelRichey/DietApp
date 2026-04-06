@@ -3,8 +3,8 @@ import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
-import { Plus, Scale, Trash2 } from 'lucide-react'
-import { format, startOfYear, getYear, getMonth } from 'date-fns'
+import { Plus, Trash2 } from 'lucide-react'
+import { format, getYear, getMonth } from 'date-fns'
 import type { WeightEntry, UserData } from '../types'
 
 // ─── Ruler constants ──────────────────────────────────────────────────────────
@@ -279,10 +279,11 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
                   <Tooltip
                     contentStyle={{ background: 'var(--bg-card)', border: 'var(--border-glass)', borderRadius: '1rem', fontSize: '0.78rem' }}
                     itemStyle={{ color: 'var(--primary)' }}
-                    formatter={(val: number, name: string) => {
-                      if (name === 'weight') return [`${val} kg`, 'Actual']
-                      if (name === 'smooth') return [`${val} kg`, 'Trend']
-                      if (name === 'pred')   return [`${val} kg`, 'Forecast']
+                    formatter={(val, name) => {
+                      const v = typeof val === 'number' ? val : Number(val)
+                      if (name === 'weight') return [`${v} kg`, 'Actual']
+                      if (name === 'smooth') return [`${v} kg`, 'Trend']
+                      if (name === 'pred')   return [`${v} kg`, 'Forecast']
                       return [val, name]
                     }}
                   />
