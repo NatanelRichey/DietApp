@@ -78,7 +78,7 @@ html, body {
 .page-scroll {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: clip; /* clip (not hidden) so inner elements can still use overflow-x: auto */
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   padding: 0 1rem 1rem;
@@ -153,6 +153,18 @@ html, body {
 
 .animate-fade-in {
   animation: fadeInUp 0.4s ease-out forwards;
+}
+
+/* Responsive sizing for small mobile screens */
+@media (max-width: 400px) {
+  .btn-primary {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
 }
 
 /* Thin scrollbar for inner panels */

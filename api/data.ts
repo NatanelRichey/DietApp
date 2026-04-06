@@ -3,7 +3,9 @@ import { put, list } from '@vercel/blob';
 async function getUserData(user: string): Promise<any | null> {
   const { blobs } = await list({ prefix: `data/${user}.json` })
   if (!blobs.length) return null
-  const res = await fetch(blobs[0].url + `?t=${Date.now()}`)
+  const blobUrl = new URL(blobs[0].url)
+  blobUrl.searchParams.set('t', String(Date.now()))
+  const res = await fetch(blobUrl)
   if (!res.ok) return null
   return res.json()
 }

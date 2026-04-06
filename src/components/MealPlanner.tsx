@@ -382,7 +382,7 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
             className="glass"
             style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', width: '100%' }}
           />
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <input
               type="time"
               value={newMeal.time}
@@ -396,9 +396,9 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
               value={newMeal.calories}
               onChange={(e) => setNewMeal({ ...newMeal, calories: e.target.value })}
               className="glass"
-              style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: 0 }}
+              style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: '80px' }}
             />
-            <button onClick={saveMeal} className="btn-primary" style={{ flexShrink: 0 }}>
+            <button onClick={saveMeal} className="btn-primary" style={{ flexShrink: 0, flex: '1 0 auto' }}>
               {editingMealId ? <Save size={18} /> : <Plus size={18} />}
               {editingMealId ? 'Save' : 'Add'}
             </button>

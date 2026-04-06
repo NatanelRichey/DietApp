@@ -104,7 +104,7 @@ const App = () => {
       {/* Header */}
       <header style={{
         display: 'grid',
-        gridTemplateColumns: '1fr auto auto',
+        gridTemplateColumns: '1fr auto auto auto',
         alignItems: 'center',
         padding: '0.7rem 1rem 0.4rem',
         gap: '0.8rem',
@@ -122,16 +122,16 @@ const App = () => {
           </div>
         </div>
 
-        {/* Cloud sync status dot */}
-        {syncStatus === 'saving' && (
-          <div title="Saving…" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--secondary)', opacity: 0.7, flexShrink: 0 }} />
-        )}
-        {syncStatus === 'saved' && (
-          <div title="Saved to cloud" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
-        )}
-        {syncStatus === 'error' && (
-          <div title="Cloud save failed — data is safe locally" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent-pink)', flexShrink: 0 }} />
-        )}
+        {/* Cloud sync status dot — always rendered to keep grid stable (4 columns) */}
+        <div
+          title={syncStatus === 'saving' ? 'Saving…' : syncStatus === 'saved' ? 'Saved to cloud' : syncStatus === 'error' ? 'Cloud save failed — data is safe locally' : ''}
+          style={{
+            width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+            background: syncStatus === 'error' ? 'var(--accent-pink)' : syncStatus === 'saving' ? 'var(--secondary)' : 'var(--primary)',
+            opacity: syncStatus === 'idle' ? 0 : syncStatus === 'saving' ? 0.7 : 1,
+            transition: 'opacity 0.3s ease',
+          }}
+        />
 
         {/* Clock — double-tap opens bug admin page */}
         <div

@@ -15,7 +15,9 @@ const DEFAULT_USERS: AppUser[] = [
 async function getUsers(): Promise<AppUser[]> {
   const { blobs } = await list({ prefix: USERS_PATH })
   if (!blobs.length) return [...DEFAULT_USERS]
-  const res = await fetch(blobs[0].url + `?t=${Date.now()}`)
+  const blobUrl = new URL(blobs[0].url)
+  blobUrl.searchParams.set('t', String(Date.now()))
+  const res = await fetch(blobUrl)
   if (!res.ok) return [...DEFAULT_USERS]
   return res.json()
 }
