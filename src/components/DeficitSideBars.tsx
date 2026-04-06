@@ -4,13 +4,15 @@ import { X } from 'lucide-react'
 import { format, addDays, startOfDay, eachDayOfInterval, differenceInDays } from 'date-fns'
 import type { UserData } from '../types'
 
-const TDEE = 2500
-const DIET_START = new Date('2026-04-03')
-const ISRAEL_TZ  = 'Asia/Jerusalem'
-const HARDCODED_CONSUMED: Record<string, number> = {
-  '2026-04-03': 600,
-  '2026-04-04': 1500,
+const ISRAEL_TZ = 'Asia/Jerusalem'
+
+interface UserConfig { tdee: number; dietStart: Date; hardcodedConsumed: Record<string, number> }
+const USER_CONFIGS: Record<string, UserConfig> = {
+  natan: { tdee: 2500, dietStart: new Date('2026-04-03'), hardcodedConsumed: { '2026-04-03': 600, '2026-04-04': 1500 } },
+  sara:  { tdee: 1750, dietStart: new Date('2026-04-06'), hardcodedConsumed: {} },
 }
+const DEFAULT_CONFIG: UserConfig = { tdee: 2000, dietStart: new Date(), hardcodedConsumed: {} }
+const getConfig = (user: string): UserConfig => USER_CONFIGS[user.toLowerCase()] ?? DEFAULT_CONFIG
 const KG_THRESHOLD    = 7700
 const MILESTONE_COLORS = ['#64FFDA', '#00BFFF', '#A855F7', '#FB7185', '#F59E0B']
 
@@ -32,10 +34,12 @@ const getElapsed = (): number => {
 }
 
 interface Props {
+  user: string
   data: UserData
 }
 
-const DeficitSideBars = ({ data }: Props) => {
+const DeficitSideBars = ({ user, data }: Props) => {
+  const { tdee: TDEE, dietStart: DIET_START, hardcodedConsumed: HARDCODED_CONSUMED } = getConfig(user)
   const [elapsed, setElapsed] = useState(getElapsed)
   const [dismissedDailyDate, setDismissedDailyDate] = useState(
     () => localStorage.getItem('deficit-banner-daily') || ''
@@ -88,8 +92,8 @@ const DeficitSideBars = ({ data }: Props) => {
     return /fast/i.test(type)
   })()
 
-  // Left bar — today's animated deficit vs daily goal (fast day = full immediately)
-  const dailyBarFill = isTodayFast ? 1 : Math.min(1, elapsed * todayMaxDeficit / dailyGoalDeficit)
+  // Left bar — fraction of 10am–10pm window elapsed (always time-based)
+  const dailyBarFill = elapsed
   const dailyPct     = Math.round(dailyBarFill * 100)
 
   // Right bar — cumulative toward 7700 kcal (cycles each kg milestone)

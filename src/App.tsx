@@ -232,7 +232,7 @@ const App = () => {
         ))}
       </nav>
 
-      <DeficitSideBars data={data} />
+      <DeficitSideBars user={user} data={data} />
 
       <BugReporter
         isOpen={isBugReporterOpen}

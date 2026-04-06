@@ -14,7 +14,8 @@ type Phase = 'select' | 'pin' | 'editNewPin' | 'editConfirmPin'
 
 const FALLBACK_USERS: AppUser[] = [
   { name: 'Natan', pin: '9442' },
-  { name: 'Simha', pin: '1994' }
+  { name: 'Simha', pin: '1994' },
+  { name: 'Sara',  pin: '1111' },
 ]
 
 const avatarColors = [

@@ -1,7 +1,63 @@
 import { useState, useEffect } from 'react'
+import { Reorder, useDragControls } from 'framer-motion'
 import { format } from 'date-fns'
-import { Plus, Trash2, Calendar, Utensils, Info, Edit2, Save } from 'lucide-react'
+import { Plus, Trash2, Calendar, Utensils, Info, Edit2, Save, GripVertical, X } from 'lucide-react' // Trash2/Utensils used in MealItem
 import type { DayPlan, Meal, UserData } from '../types'
+
+interface MealItemProps {
+  meal: Meal
+  isEditing: boolean
+  onEdit: (meal: Meal) => void
+  onDelete: (id: string) => void
+}
+
+const MealItem = ({ meal, isEditing, onEdit, onDelete }: MealItemProps) => {
+  const controls = useDragControls()
+  return (
+    <Reorder.Item value={meal} dragListener={false} dragControls={controls} as="div" style={{ listStyle: 'none' }}>
+      <div
+        className="card"
+        style={{
+          display: 'flex', alignItems: 'center', padding: '0.9rem 1rem',
+          gap: '0.8rem', overflow: 'hidden',
+          border: isEditing ? '1px solid var(--primary)' : undefined,
+          background: isEditing ? 'rgba(100,255,218,0.06)' : undefined,
+        }}
+      >
+        {/* Drag handle */}
+        <div
+          onPointerDown={(e) => controls.start(e)}
+          style={{ cursor: 'grab', touchAction: 'none', color: 'var(--text-muted)', opacity: 0.45, flexShrink: 0, display: 'flex', alignItems: 'center' }}
+        >
+          <GripVertical size={18} />
+        </div>
+
+        {/* Meal info — tap to edit */}
+        <div
+          onClick={() => onEdit(meal)}
+          style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flex: 1, minWidth: 0, cursor: 'pointer' }}
+        >
+          <div style={{ background: isEditing ? 'rgba(100,255,218,0.2)' : 'rgba(100,255,218,0.1)', color: 'var(--primary)', padding: '0.5rem', borderRadius: '0.8rem', flexShrink: 0 }}>
+            <Utensils size={18} />
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meal.name}</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              <span style={{ color: 'var(--primary)' }}>{meal.time}</span> · {meal.calories} kcal
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(meal.id) }}
+          style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', opacity: 0.6, cursor: 'pointer', flexShrink: 0 }}
+        >
+          <Trash2 size={18} />
+        </button>
+      </div>
+    </Reorder.Item>
+  )
+}
 
 interface MealPlannerProps {
   user: string
@@ -17,6 +73,7 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
   })
   const currentPlan = data.dayPlans[editingPlanId] || { type: editingPlanId, meals: [], guidelines: '' }
   const [newMeal, setNewMeal] = useState({ name: '', time: '12:00', calories: '' })
+  const [editingMealId, setEditingMealId] = useState<string | null>(null)
 
   const [selectedDays, setSelectedDays] = useState<number[]>(() =>
     Object.entries(data.weekSchedule || {})
@@ -31,6 +88,8 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
       .map(([day]) => Number(day))
     setSelectedDays(days)
     setScheduleDirty(false)
+    setEditingMealId(null)
+    setNewMeal({ name: '', time: '12:00', calories: '' })
   }, [editingPlanId])
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading planner...</div>
@@ -74,17 +133,37 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
     })
   }
 
-  const addMeal = () => {
+  const saveMeal = () => {
     if (!newMeal.name || !newMeal.calories) return
-    const meal: Meal = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: newMeal.name,
-      time: newMeal.time,
-      calories: parseInt(newMeal.calories),
-      completed: false
+    if (editingMealId) {
+      const updatedMeals = currentPlan.meals.map(m =>
+        m.id === editingMealId
+          ? { ...m, name: newMeal.name, time: newMeal.time, calories: parseInt(newMeal.calories) }
+          : m
+      )
+      updatePlan({ ...currentPlan, meals: updatedMeals })
+      setEditingMealId(null)
+    } else {
+      const meal: Meal = {
+        id: Math.random().toString(36).substr(2, 9),
+        name: newMeal.name,
+        time: newMeal.time,
+        calories: parseInt(newMeal.calories),
+        completed: false
+      }
+      const updatedMeals = [...currentPlan.meals, meal].sort((a, b) => a.time.localeCompare(b.time))
+      updatePlan({ ...currentPlan, meals: updatedMeals })
     }
-    const updatedMeals = [...currentPlan.meals, meal].sort((a, b) => a.time.localeCompare(b.time))
-    updatePlan({ ...currentPlan, meals: updatedMeals })
+    setNewMeal({ name: '', time: '12:00', calories: '' })
+  }
+
+  const startEditMeal = (meal: Meal) => {
+    setEditingMealId(meal.id)
+    setNewMeal({ name: meal.name, time: meal.time, calories: String(meal.calories) })
+  }
+
+  const cancelEdit = () => {
+    setEditingMealId(null)
     setNewMeal({ name: '', time: '12:00', calories: '' })
   }
 
@@ -284,9 +363,16 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
         )}
       </div>
 
-      {/* Add Meal Form */}
-      <div className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <h3 style={{ margin: 0 }}>Add Scheduled Meal</h3>
+      {/* Add / Edit Meal Form */}
+      <div className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: editingMealId ? '1px solid var(--primary)' : undefined }}>
+        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {editingMealId ? 'Edit Meal' : 'Add Scheduled Meal'}
+          {editingMealId && (
+            <button onClick={cancelEdit} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}>
+              <X size={18} />
+            </button>
+          )}
+        </h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <input
             type="text"
@@ -312,8 +398,9 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
               className="glass"
               style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: 0 }}
             />
-            <button onClick={addMeal} className="btn-primary" style={{ flexShrink: 0 }}>
-              <Plus size={18} /> Add
+            <button onClick={saveMeal} className="btn-primary" style={{ flexShrink: 0 }}>
+              {editingMealId ? <Save size={18} /> : <Plus size={18} />}
+              {editingMealId ? 'Save' : 'Add'}
             </button>
           </div>
         </div>
@@ -325,29 +412,22 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
         {currentPlan.meals.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No meals scheduled for this day type.</div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+          <Reorder.Group
+            axis="y"
+            values={currentPlan.meals}
+            onReorder={(newOrder) => updatePlan({ ...currentPlan, meals: newOrder })}
+            style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', listStyle: 'none', padding: 0, margin: 0 }}
+          >
             {currentPlan.meals.map(meal => (
-              <div key={meal.id} className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.9rem 1rem', gap: '0.8rem', overflow: 'hidden' }}>
-                <div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                  <div style={{ background: 'rgba(100,255,218,0.1)', color: 'var(--primary)', padding: '0.5rem', borderRadius: '0.8rem', flexShrink: 0 }}>
-                    <Utensils size={18} />
-                  </div>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meal.name}</div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      <span style={{ color: 'var(--primary)' }}>{meal.time}</span> · {meal.calories} kcal
-                    </div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => deleteMeal(meal.id)}
-                  style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', opacity: 0.6, cursor: 'pointer' }}
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
+              <MealItem
+                key={meal.id}
+                meal={meal}
+                isEditing={editingMealId === meal.id}
+                onEdit={startEditMeal}
+                onDelete={deleteMeal}
+              />
             ))}
-          </div>
+          </Reorder.Group>
         )}
       </div>
 

@@ -3,15 +3,34 @@ import { ChevronLeft, ChevronRight, CheckCircle2, Circle, Calendar, Info, Flame,
 import { format, subDays, addDays, isSameDay, differenceInDays, startOfDay, eachDayOfInterval } from 'date-fns'
 import type { DailyLog, Meal, UserData } from '../types'
 
-// ── Constants ───────────────────────────────────────────────────────────────
-const DIET_START_DATE = new Date('2026-04-03')
-const MILESTONE_DATE  = new Date('2026-05-21')
-const TDEE            = 2500
-const ISRAEL_TZ       = 'Asia/Jerusalem'
-const HARDCODED_CONSUMED: Record<string, number> = {
-  '2026-04-03': 600,
-  '2026-04-04': 1500,
+// ── Per-user config ──────────────────────────────────────────────────────────
+const ISRAEL_TZ = 'Asia/Jerusalem'
+
+interface UserConfig {
+  tdee: number
+  dietStart: Date
+  milestone: Date | null
+  hardcodedConsumed: Record<string, number>
+  showFasts: boolean
 }
+const USER_CONFIGS: Record<string, UserConfig> = {
+  natan: {
+    tdee: 2500,
+    dietStart: new Date('2026-04-03'),
+    milestone: new Date('2026-05-21'),
+    hardcodedConsumed: { '2026-04-03': 600, '2026-04-04': 1500 },
+    showFasts: true,
+  },
+  sara: {
+    tdee: 1750,
+    dietStart: new Date('2026-04-06'),
+    milestone: new Date('2026-06-09'),
+    hardcodedConsumed: {},
+    showFasts: false,
+  },
+}
+const DEFAULT_CONFIG: UserConfig = { tdee: 2000, dietStart: new Date(), milestone: null, hardcodedConsumed: {}, showFasts: false }
+const getUserConfig = (u: string): UserConfig => USER_CONFIGS[u.toLowerCase()] ?? DEFAULT_CONFIG
 
 const toDateKey = (d: Date) => format(d, 'yyyy-MM-dd')
 
@@ -40,7 +59,8 @@ interface DashboardProps {
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
-const Dashboard = ({ data, setData, loading }: DashboardProps) => {
+const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
+  const { tdee: TDEE, dietStart: DIET_START_DATE, milestone: MILESTONE_DATE, hardcodedConsumed: HARDCODED_CONSUMED, showFasts } = getUserConfig(user)
   const [viewDate, setViewDate] = useState(new Date())
   const [deficitExpanded, setDeficitExpanded] = useState(false)
   const [journeyExpanded, setJourneyExpanded] = useState(false)
@@ -73,8 +93,9 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
     }
   }, [])
 
-  // Bug 3 — seed April 3 log with 600 kcal meal marked complete
+  // Seed April 3 log for Natan only (pre-app Shabbat meal)
   useEffect(() => {
+    if (user.toLowerCase() !== 'natan') { seededRef.current = true; return }
     if (seededRef.current || loading) return
     if (data.dailyLogs?.['2026-04-03']) { seededRef.current = true; return }
     seededRef.current = true
@@ -128,21 +149,23 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
     })
   }
 
-  // ── Diet Journey stats (Bug 1 — use startOfDay for correct calendar-day diff) ─
-  const todayStart = startOfDay(new Date())
+  // ── Diet Journey stats ────────────────────────────────────────────────────
+  const todayStart    = startOfDay(new Date())
   const daysOnDiet    = Math.max(1, differenceInDays(todayStart, startOfDay(DIET_START_DATE)) + 1)
-  const totalDietDays = differenceInDays(startOfDay(MILESTONE_DATE), startOfDay(DIET_START_DATE)) + 1
-  const daysToGo      = Math.max(0, differenceInDays(startOfDay(MILESTONE_DATE), todayStart))
-  const journeyPct    = Math.min(100, (daysOnDiet / totalDietDays) * 100)
+  const totalDietDays = MILESTONE_DATE ? differenceInDays(startOfDay(MILESTONE_DATE), startOfDay(DIET_START_DATE)) + 1 : null
+  const daysToGo      = MILESTONE_DATE ? Math.max(0, differenceInDays(startOfDay(MILESTONE_DATE), todayStart)) : null
+  const journeyPct    = totalDietDays ? Math.min(100, (daysOnDiet / totalDietDays) * 100) : null
 
   const shabbatsLeft = useMemo(() => {
+    if (!MILESTONE_DATE) return null
     let count = 0, d = addDays(startOfDay(new Date()), 1)
     const end = startOfDay(MILESTONE_DATE)
     while (d <= end) { if (d.getDay() === 6) count++; d = addDays(d, 1) }
     return count
-  }, [daysOnDiet]) // recompute when the day ticks over
+  }, [daysOnDiet, MILESTONE_DATE]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fastsLeft = useMemo(() => {
+    if (!MILESTONE_DATE || !showFasts) return null
     let count = 0, d = addDays(startOfDay(new Date()), 1)
     const end = startOfDay(MILESTONE_DATE)
     while (d <= end) {
@@ -152,7 +175,7 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
       d = addDays(d, 1)
     }
     return count
-  }, [daysOnDiet, data.weekSchedule, data.activePlanId, data.dayPlans])
+  }, [daysOnDiet, MILESTONE_DATE, data.weekSchedule, data.activePlanId, data.dayPlans]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fast-day detection for the currently viewed day
   const isFastViewDay = /fast/i.test(data.dayPlans?.[currentLog.planId]?.type ?? currentLog.planId ?? '')
@@ -162,8 +185,8 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
   // ── Upcoming days for Diet Journey table ─────────────────────────────────────
   const upcomingDays = useMemo(() => {
     const rows: { date: Date; label: string; labelColor: string; calories: number }[] = []
-    let d = addDays(startOfDay(new Date()), 0) // start from today
-    const end = startOfDay(MILESTONE_DATE)
+    let d = addDays(startOfDay(new Date()), 0)
+    const end = MILESTONE_DATE ? startOfDay(MILESTONE_DATE) : addDays(startOfDay(new Date()), 30)
     while (d <= end) {
       const dow    = d.getDay()
       const planId = data.weekSchedule?.[dow] || data.activePlanId
@@ -247,33 +270,41 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
             <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.1rem' }}>On diet</div>
             <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>
               Day {daysOnDiet}
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '0.3rem' }}>of {totalDietDays}</span>
+              {totalDietDays !== null && <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '0.3rem' }}>of {totalDietDays}</span>}
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.1rem' }}>To go</div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--secondary)' }}>
-              {daysToGo} <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>days</span>
+          {daysToGo !== null && (
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.1rem' }}>To go</div>
+              <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--secondary)' }}>
+                {daysToGo} <span style={{ fontSize: '0.75rem', fontWeight: 400 }}>days</span>
+              </div>
             </div>
-          </div>
+          )}
         </div>
         <div style={{ height: '7px', background: 'rgba(255,255,255,0.06)', borderRadius: '4px', overflow: 'hidden', marginBottom: '0.65rem' }}>
-          <div style={{ height: '100%', width: `${journeyPct}%`, background: 'linear-gradient(90deg, var(--primary), var(--secondary))', borderRadius: '4px', transition: 'width 0.4s ease-out' }} />
+          <div style={{ height: '100%', width: `${journeyPct ?? 100}%`, background: 'linear-gradient(90deg, var(--primary), var(--secondary))', borderRadius: '4px', transition: 'width 0.4s ease-out' }} />
         </div>
-        <div style={{ display: 'flex', gap: '1.2rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <span style={{ fontSize: '0.88rem' }}>🕍</span>
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-              <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{shabbatsLeft}</span> Shabbats
-            </span>
+        {(shabbatsLeft !== null || fastsLeft !== null) && (
+          <div style={{ display: 'flex', gap: '1.2rem' }}>
+            {shabbatsLeft !== null && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span style={{ fontSize: '0.88rem' }}>🕍</span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{shabbatsLeft}</span> Shabbats
+                </span>
+              </div>
+            )}
+            {fastsLeft !== null && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span style={{ fontSize: '0.88rem' }}>⚡</span>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{fastsLeft}</span> Fasts
+                </span>
+              </div>
+            )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-            <span style={{ fontSize: '0.88rem' }}>⚡</span>
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-              <span style={{ fontWeight: 700, color: 'var(--text-main)' }}>{fastsLeft}</span> Fasts
-            </span>
-          </div>
-        </div>
+        )}
 
         {/* Collapsible upcoming-days table */}
         {journeyExpanded && (
@@ -343,7 +374,7 @@ const Dashboard = ({ data, setData, loading }: DashboardProps) => {
             </div>
           </div>
           <div style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: '0.75rem', lineHeight: 1.6 }}>
-            <div>since Apr 3</div>
+            <div>since {format(DIET_START_DATE, 'MMM d')}</div>
             <div>{daysOnDiet} day{daysOnDiet !== 1 ? 's' : ''}</div>
           </div>
         </div>
