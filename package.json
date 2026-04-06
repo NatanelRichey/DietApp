@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "pull-bugs": "node scripts/pull-bugs.js"
+    "pull-bugs": "node scripts/pull-bugs.js",
+    "backup": "node scripts/backup-blob.js"
   },
   "dependencies": {
     "@vercel/blob": "^2.3.3",

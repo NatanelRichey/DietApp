@@ -26,6 +26,9 @@ dist-ssr
 .vercel
 .env*.local
 
+# Local backups (pulled via npm run backup)
+backups/
+
 # Bug report screenshots (pulled locally via npm run pull-bugs)
 bugs/open/*.png
 bugs/solved/*.png
