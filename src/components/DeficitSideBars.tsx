@@ -9,7 +9,7 @@ const ISRAEL_TZ = 'Asia/Jerusalem'
 interface UserConfig { tdee: number; dietStart: Date; hardcodedConsumed: Record<string, number> }
 const USER_CONFIGS: Record<string, UserConfig> = {
   natan: { tdee: 2500, dietStart: new Date('2026-04-03'), hardcodedConsumed: { '2026-04-03': 600, '2026-04-04': 1500 } },
-  sara:  { tdee: 1750, dietStart: new Date('2026-04-06'), hardcodedConsumed: {} },
+  sara:  { tdee: 1750, dietStart: new Date('2026-04-09'), hardcodedConsumed: {} },
 }
 const DEFAULT_CONFIG: UserConfig = { tdee: 2000, dietStart: new Date(), hardcodedConsumed: {} }
 const getConfig = (user: string): UserConfig => USER_CONFIGS[user.toLowerCase()] ?? DEFAULT_CONFIG

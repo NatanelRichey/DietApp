@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { LayoutDashboard, Scale, Utensils, Files, Clock, Calendar } from 'lucide-react'
+import { LayoutDashboard, Scale, Utensils, Files, Clock, Calendar, Dumbbell } from 'lucide-react'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toPng } from 'html-to-image'
@@ -12,6 +12,7 @@ import BugReporter from './components/BugReporter'
 import BugAdmin from './components/BugAdmin'
 import SimCartApp from './components/simcart/SimCartApp'
 import DeficitSideBars from './components/DeficitSideBars'
+import WorkoutSchedule from './components/WorkoutSchedule'
 import useDatabase, { DEFAULT_DATA } from './hooks/useDatabase'
 
 const DOUBLE_TAP_MS = 300
@@ -95,6 +96,7 @@ const App = () => {
       case 'weight':    return <WeightTracker user={user} {...tabProps} />
       case 'planner':   return <MealPlanner user={user} {...tabProps} />
       case 'docs':      return <DocViewer user={user} {...tabProps} />
+      case 'schedule':  return <WorkoutSchedule user={user} {...tabProps} />
       default:          return null
     }
   }
@@ -204,6 +206,7 @@ const App = () => {
           { tab: 'weight',    icon: <Scale size={22} />,           label: 'Weight' },
           { tab: 'planner',   icon: <Utensils size={22} />,        label: 'Planner' },
           { tab: 'docs',      icon: <Files size={22} />,           label: 'Docs' },
+          { tab: 'schedule',  icon: <Dumbbell size={22} />,        label: 'Schedule' },
         ].map(({ tab, icon, label }) => (
           <button
             key={tab}
@@ -217,7 +220,7 @@ const App = () => {
               gap: '0.15rem',
               color: activeTab === tab ? 'var(--primary)' : 'var(--text-muted)',
               cursor: 'pointer',
-              width: '25%',
+              width: '20%',
               padding: '0.3rem 0',
               fontWeight: activeTab === tab ? 600 : 400,
               fontSize: '0.65rem',

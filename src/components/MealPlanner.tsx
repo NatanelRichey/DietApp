@@ -43,7 +43,7 @@ const MealItem = ({ meal, isEditing, onEdit, onDelete }: MealItemProps) => {
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meal.name}</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              <span style={{ color: 'var(--primary)' }}>{meal.time}</span> · {meal.calories} kcal
+              <span style={{ color: 'var(--primary)' }}>{meal.time}</span> · {meal.calories} kcal{meal.protein !== undefined ? ` · ${meal.protein}g protein` : ''}
             </div>
           </div>
         </div>
@@ -72,7 +72,7 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
     return keys.includes(data.activePlanId) ? data.activePlanId : (keys[0] || '')
   })
   const currentPlan = data.dayPlans[editingPlanId] || { type: editingPlanId, meals: [], guidelines: '' }
-  const [newMeal, setNewMeal] = useState({ name: '', time: '12:00', calories: '' })
+  const [newMeal, setNewMeal] = useState({ name: '', time: '12:00', calories: '', protein: '' })
   const [editingMealId, setEditingMealId] = useState<string | null>(null)
 
   const [selectedDays, setSelectedDays] = useState<number[]>(() =>
@@ -89,7 +89,7 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
     setSelectedDays(days)
     setScheduleDirty(false)
     setEditingMealId(null)
-    setNewMeal({ name: '', time: '12:00', calories: '' })
+    setNewMeal({ name: '', time: '12:00', calories: '', protein: '' })
   }, [editingPlanId])
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: '2rem' }}>Loading planner...</div>
@@ -135,10 +135,11 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
 
   const saveMeal = () => {
     if (!newMeal.name || !newMeal.calories) return
+    const parsedProtein = newMeal.protein ? parseFloat(newMeal.protein) : undefined
     if (editingMealId) {
       const updatedMeals = currentPlan.meals.map(m =>
         m.id === editingMealId
-          ? { ...m, name: newMeal.name, time: newMeal.time, calories: parseInt(newMeal.calories) }
+          ? { ...m, name: newMeal.name, time: newMeal.time, calories: parseInt(newMeal.calories), protein: parsedProtein }
           : m
       )
       updatePlan({ ...currentPlan, meals: updatedMeals })
@@ -149,22 +150,23 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
         name: newMeal.name,
         time: newMeal.time,
         calories: parseInt(newMeal.calories),
+        protein: parsedProtein,
         completed: false
       }
       const updatedMeals = [...currentPlan.meals, meal].sort((a, b) => a.time.localeCompare(b.time))
       updatePlan({ ...currentPlan, meals: updatedMeals })
     }
-    setNewMeal({ name: '', time: '12:00', calories: '' })
+    setNewMeal({ name: '', time: '12:00', calories: '', protein: '' })
   }
 
   const startEditMeal = (meal: Meal) => {
     setEditingMealId(meal.id)
-    setNewMeal({ name: meal.name, time: meal.time, calories: String(meal.calories) })
+    setNewMeal({ name: meal.name, time: meal.time, calories: String(meal.calories), protein: meal.protein !== undefined ? String(meal.protein) : '' })
   }
 
   const cancelEdit = () => {
     setEditingMealId(null)
-    setNewMeal({ name: '', time: '12:00', calories: '' })
+    setNewMeal({ name: '', time: '12:00', calories: '', protein: '' })
   }
 
   const deleteMeal = (id: string) => {
@@ -211,6 +213,7 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
   }
 
   const totalCalories = currentPlan.meals.reduce((sum, m) => sum + m.calories, 0)
+  const totalProtein  = currentPlan.meals.reduce((sum, m) => sum + (m.protein ?? 0), 0)
 
   return (
     <div className="meal-planner" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -301,6 +304,7 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
           <div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Planned Total</div>
             <div style={{ fontSize: '2rem', fontWeight: 800 }}>{totalCalories} <span style={{ fontSize: '0.8rem' }}>kcal</span></div>
+            {totalProtein > 0 && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{totalProtein}g protein</div>}
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Meals Scheduled</div>
@@ -395,6 +399,14 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
               placeholder="Calories"
               value={newMeal.calories}
               onChange={(e) => setNewMeal({ ...newMeal, calories: e.target.value })}
+              className="glass"
+              style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: '80px' }}
+            />
+            <input
+              type="number"
+              placeholder="Protein (g)"
+              value={newMeal.protein}
+              onChange={(e) => setNewMeal({ ...newMeal, protein: e.target.value })}
               className="glass"
               style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: '80px' }}
             />

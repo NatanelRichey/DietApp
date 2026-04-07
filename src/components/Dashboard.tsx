@@ -23,7 +23,7 @@ const USER_CONFIGS: Record<string, UserConfig> = {
   },
   sara: {
     tdee: 1750,
-    dietStart: new Date('2026-04-06'),
+    dietStart: new Date('2026-04-09'),
     milestone: new Date('2026-06-09'),
     hardcodedConsumed: {},
     showFasts: false,
@@ -66,7 +66,8 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
   const [journeyExpanded, setJourneyExpanded] = useState(false)
   const [elapsed, setElapsed] = useState(getElapsed)
   const dateInputRef = useRef<HTMLInputElement>(null)
-  const seededRef   = useRef(false)
+  const seededRef     = useRef(false)
+  const saraSeedRef   = useRef(false)
 
   // 1-second timer for animated deficit counter and side bar sync
   useEffect(() => {
@@ -113,6 +114,73 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
     })
   }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Seed Sara's meal plans on first load
+  useEffect(() => {
+    if (user.toLowerCase() !== 'sara') { saraSeedRef.current = true; return }
+    if (saraSeedRef.current || loading) return
+    if (data.dayPlans?.['Breakfast 1']) { saraSeedRef.current = true; return }
+    saraSeedRef.current = true
+    setData({
+      ...data,
+      activePlanId: 'Breakfast 1',
+      dayPlans: {
+        'Breakfast 1': {
+          type: 'Breakfast 1',
+          guidelines: 'Path 1 breakfast — 390 kcal / 35g protein. Pair with Lunch 1.',
+          meals: [
+            { id: 'sara-b1-eggs',    name: '2 Eggs',               time: '08:00', calories: 140, protein: 12,  completed: false },
+            { id: 'sara-b1-oil',     name: '1/2 tsp Oil',           time: '08:00', calories: 20,  protein: 0,   completed: false },
+            { id: 'sara-b1-cottage', name: '2 tbsp Cottage Cheese', time: '08:00', calories: 25,  protein: 3,   completed: false },
+            { id: 'sara-b1-pita',    name: '1 Spelt Pita',          time: '08:00', calories: 100, protein: 5,   completed: false },
+            { id: 'sara-b1-tuna',    name: 'Tuna (can in water)',   time: '08:00', calories: 105, protein: 25,  completed: false },
+            { id: 'sara-b1-pmilk',  name: 'Protein Milk',          time: '08:00', calories: 65,  protein: 6.5, completed: false },
+          ],
+        },
+        'Breakfast 2': {
+          type: 'Breakfast 2',
+          guidelines: 'Path 2 breakfast — 230 kcal / 33g protein. Pair with Lunch 2.',
+          meals: [
+            { id: 'sara-b2-cottage', name: 'Cottage Cheese', time: '08:00', calories: 25,  protein: 3,  completed: false },
+            { id: 'sara-b2-pita',    name: 'Pita',           time: '08:00', calories: 100, protein: 5,  completed: false },
+            { id: 'sara-b2-tuna',    name: 'Tuna',           time: '08:00', calories: 105, protein: 25, completed: false },
+          ],
+        },
+        'Lunch 1': {
+          type: 'Lunch 1',
+          guidelines: 'Path 1 lunch — 279 kcal base / 27g protein. Optionals: 1/2 Apple + 1/2 Banana add 100 kcal.',
+          meals: [
+            { id: 'sara-l1-protein', name: 'Protein Source',        time: '12:30', calories: 130, protein: 25, completed: false },
+            { id: 'sara-l1-corn',    name: 'Cornflakes',             time: '12:30', calories: 117, protein: 2,  completed: false },
+            { id: 'sara-l1-blue',    name: 'Blueberries (30g)',      time: '12:30', calories: 11,  protein: 0,  completed: false },
+            { id: 'sara-l1-honey',   name: 'Honey (1 tsp)',          time: '12:30', calories: 21,  protein: 0,  completed: false },
+            { id: 'sara-l1-apple',   name: '1/2 Apple (optional)',   time: '12:30', calories: 50,  protein: 0,  completed: false },
+            { id: 'sara-l1-banana',  name: '1/2 Banana (optional)',  time: '12:30', calories: 50,  protein: 0,  completed: false },
+          ],
+        },
+        'Lunch 2': {
+          type: 'Lunch 2',
+          guidelines: 'Path 2 lunch — 528 kcal / 53g protein.',
+          meals: [
+            { id: 'sara-l2-protein', name: '1/2 Protein Source', time: '12:30', calories: 65,  protein: 12,  completed: false },
+            { id: 'sara-l2-powder',  name: 'Protein Powder',     time: '12:30', calories: 143, protein: 26,  completed: false },
+            { id: 'sara-l2-blue',    name: 'Blueberries (30g)',  time: '12:30', calories: 11,  protein: 0,   completed: false },
+            { id: 'sara-l2-corn',    name: 'Cornflakes (15g)',   time: '12:30', calories: 58,  protein: 1,   completed: false },
+            { id: 'sara-l2-honey',   name: 'Honey (1 tsp)',      time: '12:30', calories: 21,  protein: 0,   completed: false },
+            { id: 'sara-l2-flour',   name: 'Flour (2 tbsp)',     time: '12:30', calories: 55,  protein: 1.5, completed: false },
+            { id: 'sara-l2-egg',     name: '1 Egg',              time: '12:30', calories: 70,  protein: 6,   completed: false },
+            { id: 'sara-l2-oil',     name: '1/2 tsp Oil',        time: '12:30', calories: 20,  protein: 0,   completed: false },
+            { id: 'sara-l2-pmilk',   name: 'Protein Milk',       time: '12:30', calories: 65,  protein: 6.5, completed: false },
+          ],
+        },
+        'General': {
+          type: 'General',
+          guidelines: `Dinner: ~500 kcal / 15g protein\nProtein Bar (snack): 215 kcal / 20g protein\nExtra #1: 100 kcal buffer\nExtra #2: 250 kcal buffer\n\n── Path 1 · High Protein / Lean Days ──\nBreakfast 1 + Lunch 1 + Protein Bar\nPre-dinner:  ~902 kcal / ~82g protein\nWith dinner: ~1,402 kcal / ~97g protein\n\n── Path 2 · Dense Nutritive Days ──\nBreakfast 2 + Lunch 2\nPre-dinner:  ~758 kcal / ~86g protein\nWith dinner: ~1,258 kcal / ~101g protein`,
+          meals: [],
+        },
+      },
+    })
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const dateKey = toDateKey(viewDate)
   const isToday = isSameDay(viewDate, new Date())
 
@@ -137,6 +205,8 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
 
   const totalCalories    = currentMeals.reduce((s, m) => s + m.calories, 0)
   const consumedCalories = currentMeals.filter(m => m.completed).reduce((s, m) => s + m.calories, 0)
+  const totalProtein     = currentMeals.reduce((s, m) => s + (m.protein ?? 0), 0)
+  const consumedProtein  = currentMeals.filter(m => m.completed).reduce((s, m) => s + (m.protein ?? 0), 0)
   const progress         = totalCalories > 0 ? (consumedCalories / totalCalories) * 100 : 0
   const allDone          = currentMeals.length > 0 && currentMeals.every(m => m.completed)
 
@@ -503,6 +573,11 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
             transition: 'width 0.4s ease-out',
           }} />
         </div>
+        {totalProtein > 0 && (
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+            Protein: {consumedProtein}g / {totalProtein}g
+          </div>
+        )}
       </div>
 
       {/* ── Plan guidelines banner ── */}

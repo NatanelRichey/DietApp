@@ -3,7 +3,15 @@ export interface Meal {
   name: string;
   time: string; // HH:mm
   calories: number;
+  protein?: number; // grams
   completed: boolean;
+}
+
+export interface WorkoutDay {
+  gym:    boolean;
+  cardio: boolean;
+  walk:   boolean;
+  notes:  string;
 }
 
 export interface DayPlan {
@@ -35,6 +43,7 @@ export interface UserData {
   dayPlans: Record<string, DayPlan>;
   activePlanId: string;
   weekSchedule: Record<number, string>; // 0=Sun … 6=Sat → planId
+  workoutSchedule?: Record<number, WorkoutDay>; // 0=Sun … 6=Sat
   documents: Document[];
   dailyLogs: Record<string, DailyLog>; // key: YYYY-MM-DD
   simCart?: SimCartData;
