@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { FileUp, FileText, Trash2, File, Plus, X } from 'lucide-react'
+import { FileUp, FileText, Trash2, File, Plus, X, Edit2, Save } from 'lucide-react'
 import type { Document, UserData } from '../types'
 
 interface DocViewerProps {
@@ -15,6 +15,8 @@ const DocViewer = ({ data, setData, loading }: DocViewerProps) => {
   const [isAddingDoc, setIsAddingDoc] = useState(false)
   const [newDocContent, setNewDocContent] = useState('')
   const [newDocName, setNewDocName] = useState('')
+  const [isEditingDoc, setIsEditingDoc] = useState(false)
+  const [editContent, setEditContent] = useState('')
 
   useEffect(() => {
     if (data.documents.length > 0 && !activeDocId) {
@@ -51,6 +53,12 @@ const DocViewer = ({ data, setData, loading }: DocViewerProps) => {
   }
 
   const activeDoc = data.documents.find(d => d.id === activeDocId)
+
+  const saveDocEdit = () => {
+    if (!activeDoc) return
+    setData({ ...data, documents: data.documents.map(d => d.id === activeDoc.id ? { ...d, content: editContent } : d) })
+    setIsEditingDoc(false)
+  }
 
   return (
     <div className="doc-viewer" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', height: 'calc(100vh - 12rem)' }}>
@@ -159,13 +167,54 @@ const DocViewer = ({ data, setData, loading }: DocViewerProps) => {
       </div>
 
       {/* Viewer */}
-      <div className="card glass animate-fade-in" style={{ flex: 1, overflowY: 'auto', padding: '2rem' }}>
+      <div className="card glass animate-fade-in" style={{ flex: 1, overflowY: 'auto', padding: '1.5rem 2rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>Loading...</div>
         ) : activeDoc ? (
-          <div className="prose">
-            <ReactMarkdown>{activeDoc.content}</ReactMarkdown>
-          </div>
+          <>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexShrink: 0 }}>
+              {isEditingDoc ? (
+                <>
+                  <button
+                    onClick={saveDocEdit}
+                    className="btn-primary"
+                    style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                  >
+                    <Save size={14} /> Save
+                  </button>
+                  <button
+                    onClick={() => setIsEditingDoc(false)}
+                    style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem', background: 'none', border: 'var(--border-glass)', borderRadius: '0.6rem', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => { setEditContent(activeDoc.content); setIsEditingDoc(true) }}
+                  style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem', background: 'none', border: 'var(--border-glass)', borderRadius: '0.6rem', color: 'var(--primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                >
+                  <Edit2 size={14} /> Edit
+                </button>
+              )}
+            </div>
+            {isEditingDoc ? (
+              <textarea
+                value={editContent}
+                onChange={e => setEditContent(e.target.value)}
+                style={{
+                  flex: 1, minHeight: '60vh', width: '100%', background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid var(--primary)', borderRadius: '0.8rem', padding: '1rem',
+                  color: 'var(--text-main)', fontSize: '0.88rem', fontFamily: 'monospace',
+                  lineHeight: 1.6, resize: 'vertical',
+                }}
+              />
+            ) : (
+              <div className="prose">
+                <ReactMarkdown>{activeDoc.content}</ReactMarkdown>
+              </div>
+            )}
+          </>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', textAlign: 'center', gap: '1rem' }}>
             <File size={48} opacity={0.3} />

@@ -80,6 +80,11 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
   const [plannerTab, setPlannerTab] = useState<'plans' | 'meals'>('plans')
   const [addToPlanTarget, setAddToPlanTarget] = useState('')
   const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null)
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null) // null = new
+  const [templateFormOpen, setTemplateFormOpen] = useState(false)
+  const [templateForm, setTemplateForm] = useState({ name: '', time: '08:00', calories: '', protein: '' })
+  const [templateItems, setTemplateItems] = useState<MealItem[]>([])
+  const [newTemplateItem, setNewTemplateItem] = useState({ name: '', calories: '', protein: '' })
 
   const [selectedDays, setSelectedDays] = useState<number[]>(() =>
     Object.entries(data.weekSchedule || {})
@@ -290,6 +295,71 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
     setData({ ...data, savedMealTemplates: (data.savedMealTemplates || []).filter(t => t.id !== id) })
   }
 
+  const openNewTemplate = () => {
+    setEditingTemplateId(null)
+    setTemplateForm({ name: '', time: '08:00', calories: '', protein: '' })
+    setTemplateItems([])
+    setNewTemplateItem({ name: '', calories: '', protein: '' })
+    setTemplateFormOpen(true)
+  }
+
+  const openEditTemplate = (t: import('../types').SavedMealTemplate) => {
+    setEditingTemplateId(t.id)
+    setTemplateForm({ name: t.name, time: t.time, calories: String(t.calories), protein: t.protein !== undefined ? String(t.protein) : '' })
+    setTemplateItems(t.items ? t.items.map(i => ({ ...i })) : [])
+    setNewTemplateItem({ name: '', calories: '', protein: '' })
+    setTemplateFormOpen(true)
+  }
+
+  const addTemplateItem = () => {
+    if (!newTemplateItem.name || !newTemplateItem.calories) return
+    const item: MealItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: newTemplateItem.name,
+      calories: parseInt(newTemplateItem.calories),
+      protein: newTemplateItem.protein ? parseFloat(newTemplateItem.protein) : undefined,
+    }
+    const updated = [...templateItems, item]
+    setTemplateItems(updated)
+    setTemplateForm(f => ({
+      ...f,
+      calories: String(updated.reduce((s, i) => s + i.calories, 0)),
+      protein: String(updated.reduce((s, i) => s + (i.protein ?? 0), 0) || ''),
+    }))
+    setNewTemplateItem({ name: '', calories: '', protein: '' })
+  }
+
+  const removeTemplateItem = (id: string) => {
+    const updated = templateItems.filter(i => i.id !== id)
+    setTemplateItems(updated)
+    if (updated.length) {
+      setTemplateForm(f => ({
+        ...f,
+        calories: String(updated.reduce((s, i) => s + i.calories, 0)),
+        protein: String(updated.reduce((s, i) => s + (i.protein ?? 0), 0) || ''),
+      }))
+    }
+  }
+
+  const saveTemplate = () => {
+    if (!templateForm.name || !templateForm.calories) return
+    const template: SavedMealTemplate = {
+      id: editingTemplateId || Math.random().toString(36).substr(2, 9),
+      name: templateForm.name,
+      time: templateForm.time,
+      calories: parseInt(templateForm.calories),
+      protein: templateForm.protein ? parseFloat(templateForm.protein) : undefined,
+      items: templateItems.length > 0 ? templateItems : undefined,
+    }
+    const existing = data.savedMealTemplates || []
+    const updated = editingTemplateId
+      ? existing.map(t => t.id === editingTemplateId ? template : t)
+      : [...existing, template]
+    setData({ ...data, savedMealTemplates: updated })
+    setTemplateFormOpen(false)
+    setEditingTemplateId(null)
+  }
+
   const totalCalories = currentPlan.meals.reduce((sum, m) => sum + m.calories, 0)
   const totalProtein  = currentPlan.meals.reduce((sum, m) => sum + (m.protein ?? 0), 0)
 
@@ -320,13 +390,84 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
         const targetPlan = addToPlanTarget || editingPlanId || planKeys[0] || ''
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {templates.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                <Bookmark size={32} style={{ opacity: 0.3, marginBottom: '0.8rem' }} />
-                <div>No saved meals yet.</div>
-                <div style={{ marginTop: '0.4rem', fontSize: '0.78rem' }}>Go to Plans, add a meal, then tap the bookmark icon to save it here.</div>
+
+            {/* Create/Edit form */}
+            {templateFormOpen ? (
+              <div className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: '1px solid var(--primary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h3 style={{ margin: 0, fontSize: '1rem' }}>{editingTemplateId ? 'Edit Meal' : 'New Saved Meal'}</h3>
+                  <button onClick={() => setTemplateFormOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={18} /></button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <input
+                    type="text" placeholder="Meal name"
+                    value={templateForm.name}
+                    onChange={e => setTemplateForm(f => ({ ...f, name: e.target.value }))}
+                    className="glass"
+                    style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)' }}
+                  />
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <input type="time" value={templateForm.time}
+                      onChange={e => setTemplateForm(f => ({ ...f, time: e.target.value }))}
+                      className="glass" style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: '0 0 auto' }} />
+                    <input type="number" placeholder="Calories"
+                      value={templateForm.calories}
+                      onChange={e => setTemplateForm(f => ({ ...f, calories: e.target.value }))}
+                      className="glass" style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: '80px' }} />
+                    <input type="number" placeholder="Protein (g)"
+                      value={templateForm.protein}
+                      onChange={e => setTemplateForm(f => ({ ...f, protein: e.target.value }))}
+                      className="glass" style={{ padding: '0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: '80px' }} />
+                  </div>
+                </div>
+
+                {/* Items */}
+                {templateItems.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {templateItems.map(item => (
+                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.6rem', background: 'rgba(255,255,255,0.04)', borderRadius: '0.6rem' }}>
+                        <div style={{ flex: 1, fontSize: '0.85rem' }}>{item.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.calories} kcal{item.protein ? ` · ${item.protein}g` : ''}</div>
+                        <button onClick={() => removeTemplateItem(item.id)} style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', opacity: 0.6, cursor: 'pointer', padding: 0 }}><Trash2 size={13} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <input type="text" placeholder="Item name"
+                    value={newTemplateItem.name}
+                    onChange={e => setNewTemplateItem(i => ({ ...i, name: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && addTemplateItem()}
+                    className="glass" style={{ padding: '0.6rem 0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 2, minWidth: '100px', fontSize: '0.85rem' }} />
+                  <input type="number" placeholder="kcal"
+                    value={newTemplateItem.calories}
+                    onChange={e => setNewTemplateItem(i => ({ ...i, calories: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && addTemplateItem()}
+                    className="glass" style={{ padding: '0.6rem 0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: '60px', fontSize: '0.85rem' }} />
+                  <input type="number" placeholder="g protein"
+                    value={newTemplateItem.protein}
+                    onChange={e => setNewTemplateItem(i => ({ ...i, protein: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && addTemplateItem()}
+                    className="glass" style={{ padding: '0.6rem 0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: '70px', fontSize: '0.85rem' }} />
+                  <button onClick={addTemplateItem} className="btn-primary" style={{ flexShrink: 0, padding: '0.6rem 0.9rem' }}><Plus size={16} /></button>
+                </div>
+                <button onClick={saveTemplate} className="btn-primary" style={{ justifyContent: 'center' }}>
+                  <Save size={16} /> {editingTemplateId ? 'Save Changes' : 'Create Meal'}
+                </button>
               </div>
             ) : (
+              <button onClick={openNewTemplate} className="btn-primary" style={{ justifyContent: 'center', background: 'rgba(100,255,218,0.12)', border: '1px solid rgba(100,255,218,0.3)', color: 'var(--primary)' }}>
+                <Plus size={18} /> New Saved Meal
+              </button>
+            )}
+
+            {templates.length === 0 && !templateFormOpen && (
+              <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                No saved meals yet. Create one above or bookmark a meal from the Plans tab.
+              </div>
+            )}
+
+            {templates.length > 0 && !templateFormOpen && (
               <>
                 {/* Plan target selector */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
@@ -344,9 +485,12 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
                 {templates.map(template => {
                   const isExpanded = expandedTemplateId === template.id
                   return (
-                    <div key={template.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0', overflow: 'hidden' }}>
+                    <div key={template.id} className="card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', padding: '0.85rem 1rem' }}>
-                        <div style={{ background: 'rgba(100,255,218,0.1)', color: 'var(--primary)', padding: '0.45rem', borderRadius: '0.7rem', flexShrink: 0 }}>
+                        <div
+                          style={{ background: 'rgba(100,255,218,0.1)', color: 'var(--primary)', padding: '0.45rem', borderRadius: '0.7rem', flexShrink: 0, cursor: (template.items?.length ?? 0) > 0 ? 'pointer' : 'default' }}
+                          onClick={() => (template.items?.length ?? 0) > 0 && setExpandedTemplateId(isExpanded ? null : template.id)}
+                        >
                           <Utensils size={16} />
                         </div>
                         <div
@@ -361,11 +505,17 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
                           </div>
                         </div>
                         <button
-                          onClick={() => { addFromLibrary(template, targetPlan); }}
+                          onClick={() => addFromLibrary(template, targetPlan)}
                           title={`Add to ${targetPlan}`}
                           style={{ background: 'rgba(100,255,218,0.12)', border: '1px solid rgba(100,255,218,0.3)', color: 'var(--primary)', borderRadius: '0.6rem', padding: '0.35rem 0.65rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, flexShrink: 0 }}
                         >
                           + Add
+                        </button>
+                        <button
+                          onClick={() => openEditTemplate(template)}
+                          style={{ background: 'none', border: 'none', color: 'var(--primary)', opacity: 0.7, cursor: 'pointer', flexShrink: 0, padding: 0 }}
+                        >
+                          <Edit2 size={15} />
                         </button>
                         <button
                           onClick={() => deleteFromLibrary(template.id)}
@@ -375,7 +525,7 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
                         </button>
                       </div>
                       {isExpanded && (template.items?.length ?? 0) > 0 && (
-                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '0.6rem 1rem 0.8rem' }}>
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '0.5rem 1rem 0.75rem' }}>
                           {template.items!.map(item => (
                             <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.2rem 0', fontSize: '0.8rem' }}>
                               <span style={{ color: 'var(--text-main)' }}>{item.name}</span>
