@@ -36,7 +36,8 @@ export interface WeightEntry {
 export interface Document {
   id: string;
   name: string;
-  content: string; // Markdown
+  content: string;
+  isMarkdown?: boolean; // default true for backwards compat
 }
 
 // A daily log stores the actual eaten state per day (separate from templates)
