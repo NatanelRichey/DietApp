@@ -246,11 +246,14 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
   }
 
   // ── Diet Journey stats ────────────────────────────────────────────────────
-  const todayStart    = startOfDay(new Date())
-  const daysOnDiet    = Math.max(1, differenceInDays(todayStart, startOfDay(DIET_START_DATE)) + 1)
-  const totalDietDays = MILESTONE_DATE ? differenceInDays(startOfDay(MILESTONE_DATE), startOfDay(DIET_START_DATE)) + 1 : null
-  const daysToGo      = MILESTONE_DATE ? Math.max(0, differenceInDays(startOfDay(MILESTONE_DATE), todayStart)) : null
-  const journeyPct    = totalDietDays ? Math.min(100, (daysOnDiet / totalDietDays) * 100) : null
+  const todayStart     = startOfDay(new Date())
+  const dietStartDay   = startOfDay(DIET_START_DATE)
+  const dietStarted    = todayStart >= dietStartDay
+  const daysUntilStart = dietStarted ? 0 : differenceInDays(dietStartDay, todayStart)
+  const daysOnDiet     = dietStarted ? Math.max(1, differenceInDays(todayStart, dietStartDay) + 1) : 0
+  const totalDietDays  = MILESTONE_DATE ? differenceInDays(startOfDay(MILESTONE_DATE), dietStartDay) + 1 : null
+  const daysToGo       = MILESTONE_DATE ? Math.max(0, differenceInDays(startOfDay(MILESTONE_DATE), todayStart)) : null
+  const journeyPct     = totalDietDays ? Math.min(100, (daysOnDiet / totalDietDays) * 100) : null
 
   const shabbatsLeft = useMemo(() => {
     if (!MILESTONE_DATE) return null
@@ -313,6 +316,7 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
   const deficitRows = useMemo(() => {
     const start = startOfDay(DIET_START_DATE)
     const end   = startOfDay(new Date())
+    if (start > end) return [] // diet hasn't started yet
     return eachDayOfInterval({ start, end }).map(d => {
       const key      = toDateKey(d)
       const isItToday = key === israelTodayKey
@@ -363,11 +367,23 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '0.6rem' }}>
           <div>
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.1rem' }}>On diet</div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>
-              Day {daysOnDiet}
-              {totalDietDays !== null && <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '0.3rem' }}>of {totalDietDays}</span>}
-            </div>
+            {dietStarted ? (
+              <>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.1rem' }}>On diet</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>
+                  Day {daysOnDiet}
+                  {totalDietDays !== null && <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 400, marginLeft: '0.3rem' }}>of {totalDietDays}</span>}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.1rem' }}>Diet starts</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 800 }}>
+                  {format(DIET_START_DATE, 'MMM d')}
+                  <span style={{ fontSize: '0.78rem', color: 'var(--secondary)', fontWeight: 600, marginLeft: '0.5rem' }}>in {daysUntilStart} day{daysUntilStart !== 1 ? 's' : ''}</span>
+                </div>
+              </>
+            )}
           </div>
           {daysToGo !== null && (
             <div style={{ textAlign: 'right' }}>
@@ -445,7 +461,7 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
       </div>
 
       {/* ── Calorie Deficit Card (Task 5 — expandable breakdown) ── */}
-      <div
+      {!dietStarted ? null : <div
         className="glass"
         style={{ padding: '1.1rem 1.2rem', cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}
         onClick={() => setDeficitExpanded(v => !v)}
@@ -529,7 +545,7 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
             </div>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* ── Day navigator ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
