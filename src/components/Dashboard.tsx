@@ -132,71 +132,67 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
   useEffect(() => {
     if (user.toLowerCase() !== 'sara') { saraSeedRef.current = true; return }
     if (saraSeedRef.current || loading) return
-    if (data.dayPlans?.['Breakfast 1']?.meals?.[0]?.items) { saraSeedRef.current = true; return }
+    if ((data.dayPlans?.['Plan 1']?.meals?.length ?? 0) >= 2) { saraSeedRef.current = true; return }
     saraSeedRef.current = true
     setData({
       ...data,
-      activePlanId: 'Breakfast 1',
+      activePlanId: 'Plan 1',
       dayPlans: {
-        'Breakfast 1': {
-          type: 'Breakfast 1',
-          guidelines: 'Path 1 breakfast — 390 kcal / 51.5g protein. Pair with Lunch 1.',
-          meals: [{
-            id: 'sara-b1', name: 'Breakfast 1', time: '08:00', calories: 455, protein: 51.5, completed: false,
-            items: [
-              { id: 'sara-b1-eggs',    name: '2 Eggs',               calories: 140, protein: 12  },
-              { id: 'sara-b1-oil',     name: '1/2 tsp Oil',           calories: 20,  protein: 0   },
-              { id: 'sara-b1-cottage', name: '2 tbsp Cottage Cheese', calories: 25,  protein: 3   },
-              { id: 'sara-b1-pita',    name: '1 Spelt Pita',          calories: 100, protein: 5   },
-              { id: 'sara-b1-tuna',    name: 'Tuna (can in water)',   calories: 105, protein: 25  },
-              { id: 'sara-b1-pmilk',  name: 'Protein Milk',          calories: 65,  protein: 6.5 },
-            ],
-          }],
+        'Plan 1': {
+          type: 'Plan 1',
+          guidelines: '── Path 1 · High Protein / Lean Days ──\nBreakfast 1 + Lunch 1 + Protein Bar\nPre-dinner: ~902 kcal / ~82g protein\nWith dinner: ~1,402 kcal / ~97g protein',
+          meals: [
+            {
+              id: 'sara-b1', name: 'Breakfast 1', time: '08:00', calories: 455, protein: 51.5, completed: false,
+              items: [
+                { id: 'sara-b1-eggs',    name: '2 Eggs',               calories: 140, protein: 12  },
+                { id: 'sara-b1-oil',     name: '1/2 tsp Oil',           calories: 20,  protein: 0   },
+                { id: 'sara-b1-cottage', name: '2 tbsp Cottage Cheese', calories: 25,  protein: 3   },
+                { id: 'sara-b1-pita',    name: '1 Spelt Pita',          calories: 100, protein: 5   },
+                { id: 'sara-b1-tuna',    name: 'Tuna (can in water)',   calories: 105, protein: 25  },
+                { id: 'sara-b1-pmilk',   name: 'Protein Milk',          calories: 65,  protein: 6.5 },
+              ],
+            },
+            {
+              id: 'sara-l1', name: 'Lunch 1', time: '12:30', calories: 379, protein: 27, completed: false,
+              items: [
+                { id: 'sara-l1-protein', name: 'Protein Source',        calories: 130, protein: 25 },
+                { id: 'sara-l1-corn',    name: 'Cornflakes',             calories: 117, protein: 2  },
+                { id: 'sara-l1-blue',    name: 'Blueberries (30g)',      calories: 11,  protein: 0  },
+                { id: 'sara-l1-honey',   name: 'Honey (1 tsp)',          calories: 21,  protein: 0  },
+                { id: 'sara-l1-apple',   name: '1/2 Apple (optional)',   calories: 50,  protein: 0  },
+                { id: 'sara-l1-banana',  name: '1/2 Banana (optional)',  calories: 50,  protein: 0  },
+              ],
+            },
+          ],
         },
-        'Breakfast 2': {
-          type: 'Breakfast 2',
-          guidelines: 'Path 2 breakfast — 230 kcal / 33g protein. Pair with Lunch 2.',
-          meals: [{
-            id: 'sara-b2', name: 'Breakfast 2', time: '08:00', calories: 230, protein: 33, completed: false,
-            items: [
-              { id: 'sara-b2-cottage', name: 'Cottage Cheese', calories: 25,  protein: 3  },
-              { id: 'sara-b2-pita',    name: 'Pita',           calories: 100, protein: 5  },
-              { id: 'sara-b2-tuna',    name: 'Tuna',           calories: 105, protein: 25 },
-            ],
-          }],
-        },
-        'Lunch 1': {
-          type: 'Lunch 1',
-          guidelines: 'Path 1 lunch — 279 kcal base / 27g protein. Optionals: 1/2 Apple + 1/2 Banana add 100 kcal.',
-          meals: [{
-            id: 'sara-l1', name: 'Lunch 1', time: '12:30', calories: 379, protein: 27, completed: false,
-            items: [
-              { id: 'sara-l1-protein', name: 'Protein Source',       calories: 130, protein: 25 },
-              { id: 'sara-l1-corn',    name: 'Cornflakes',            calories: 117, protein: 2  },
-              { id: 'sara-l1-blue',    name: 'Blueberries (30g)',     calories: 11,  protein: 0  },
-              { id: 'sara-l1-honey',   name: 'Honey (1 tsp)',         calories: 21,  protein: 0  },
-              { id: 'sara-l1-apple',   name: '1/2 Apple (optional)',  calories: 50,  protein: 0  },
-              { id: 'sara-l1-banana',  name: '1/2 Banana (optional)', calories: 50,  protein: 0  },
-            ],
-          }],
-        },
-        'Lunch 2': {
-          type: 'Lunch 2',
-          guidelines: 'Path 2 lunch — 508 kcal / 53g protein.',
-          meals: [{
-            id: 'sara-l2', name: 'Lunch 2', time: '12:30', calories: 508, protein: 53, completed: false,
-            items: [
-              { id: 'sara-l2-protein', name: '1/2 Protein Source', calories: 65,  protein: 12  },
-              { id: 'sara-l2-powder',  name: 'Protein Powder',     calories: 143, protein: 26  },
-              { id: 'sara-l2-blue',    name: 'Blueberries (30g)',  calories: 11,  protein: 0   },
-              { id: 'sara-l2-corn',    name: 'Cornflakes (15g)',   calories: 58,  protein: 1   },
-              { id: 'sara-l2-honey',   name: 'Honey (1 tsp)',      calories: 21,  protein: 0   },
-              { id: 'sara-l2-flour',   name: 'Flour (2 tbsp)',     calories: 55,  protein: 1.5 },
-              { id: 'sara-l2-egg',     name: '1 Egg',              calories: 70,  protein: 6   },
-              { id: 'sara-l2-oil',     name: '1/2 tsp Oil',        calories: 20,  protein: 0   },
-              { id: 'sara-l2-pmilk',   name: 'Protein Milk',       calories: 65,  protein: 6.5 },
-            ],
-          }],
+        'Plan 2': {
+          type: 'Plan 2',
+          guidelines: '── Path 2 · Dense Nutritive Days ──\nBreakfast 2 + Lunch 2\nPre-dinner: ~758 kcal / ~86g protein\nWith dinner: ~1,258 kcal / ~101g protein',
+          meals: [
+            {
+              id: 'sara-b2', name: 'Breakfast 2', time: '08:00', calories: 230, protein: 33, completed: false,
+              items: [
+                { id: 'sara-b2-cottage', name: 'Cottage Cheese', calories: 25,  protein: 3  },
+                { id: 'sara-b2-pita',    name: 'Pita',           calories: 100, protein: 5  },
+                { id: 'sara-b2-tuna',    name: 'Tuna',           calories: 105, protein: 25 },
+              ],
+            },
+            {
+              id: 'sara-l2', name: 'Lunch 2', time: '12:30', calories: 508, protein: 53, completed: false,
+              items: [
+                { id: 'sara-l2-protein', name: '1/2 Protein Source', calories: 65,  protein: 12  },
+                { id: 'sara-l2-powder',  name: 'Protein Powder',     calories: 143, protein: 26  },
+                { id: 'sara-l2-blue',    name: 'Blueberries (30g)',  calories: 11,  protein: 0   },
+                { id: 'sara-l2-corn',    name: 'Cornflakes (15g)',   calories: 58,  protein: 1   },
+                { id: 'sara-l2-honey',   name: 'Honey (1 tsp)',      calories: 21,  protein: 0   },
+                { id: 'sara-l2-flour',   name: 'Flour (2 tbsp)',     calories: 55,  protein: 1.5 },
+                { id: 'sara-l2-egg',     name: '1 Egg',              calories: 70,  protein: 6   },
+                { id: 'sara-l2-oil',     name: '1/2 tsp Oil',        calories: 20,  protein: 0   },
+                { id: 'sara-l2-pmilk',   name: 'Protein Milk',       calories: 65,  protein: 6.5 },
+              ],
+            },
+          ],
         },
         'General': {
           type: 'General',

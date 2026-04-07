@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { format } from 'date-fns'
-import { Plus, Trash2, Calendar, Utensils, Info, Edit2, Save, GripVertical, X } from 'lucide-react' // Trash2/Utensils used in MealItem
-import type { DayPlan, Meal, MealItem, UserData } from '../types'
+import { Plus, Trash2, Calendar, Utensils, Info, Edit2, Save, GripVertical, X, Bookmark, ChevronDown, ChevronUp } from 'lucide-react'
+import type { DayPlan, Meal, MealItem, SavedMealTemplate, UserData } from '../types'
 
 interface MealItemProps {
   meal: Meal
@@ -75,6 +75,8 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
   const [newMeal, setNewMeal] = useState({ name: '', time: '12:00', calories: '', protein: '' })
   const [editingMealId, setEditingMealId] = useState<string | null>(null)
   const [newItem, setNewItem] = useState({ name: '', calories: '', protein: '' })
+
+  const [savedMealsExpanded, setSavedMealsExpanded] = useState(false)
 
   const [selectedDays, setSelectedDays] = useState<number[]>(() =>
     Object.entries(data.weekSchedule || {})
@@ -249,6 +251,37 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
       weekSchedule: updatedSchedule
     })
     setEditingPlanId(newName)
+  }
+
+  const saveToLibrary = () => {
+    if (!newMeal.name || !newMeal.calories) return
+    const template: SavedMealTemplate = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: newMeal.name,
+      time: newMeal.time,
+      calories: parseInt(newMeal.calories),
+      protein: newMeal.protein ? parseFloat(newMeal.protein) : undefined,
+      items: editingMealId ? (currentPlan.meals.find(m => m.id === editingMealId)?.items) : undefined,
+    }
+    setData({ ...data, savedMealTemplates: [...(data.savedMealTemplates || []), template] })
+  }
+
+  const addFromLibrary = (template: SavedMealTemplate) => {
+    const meal: Meal = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: template.name,
+      time: template.time,
+      calories: template.calories,
+      protein: template.protein,
+      items: template.items ? template.items.map(i => ({ ...i, id: Math.random().toString(36).substr(2, 9) })) : undefined,
+      completed: false,
+    }
+    const updatedMeals = [...currentPlan.meals, meal].sort((a, b) => a.time.localeCompare(b.time))
+    updatePlan({ ...currentPlan, meals: updatedMeals })
+  }
+
+  const deleteFromLibrary = (id: string) => {
+    setData({ ...data, savedMealTemplates: (data.savedMealTemplates || []).filter(t => t.id !== id) })
   }
 
   const totalCalories = currentPlan.meals.reduce((sum, m) => sum + m.calories, 0)
@@ -453,6 +486,13 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
               {editingMealId ? <Save size={18} /> : <Plus size={18} />}
               {editingMealId ? 'Save' : 'Add'}
             </button>
+            <button
+              onClick={saveToLibrary}
+              title="Save to meal library"
+              style={{ flexShrink: 0, background: 'rgba(100,255,218,0.1)', border: '1px solid rgba(100,255,218,0.3)', color: 'var(--primary)', borderRadius: '0.8rem', padding: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            >
+              <Bookmark size={18} />
+            </button>
           </div>
         </div>
       </div>
@@ -519,6 +559,49 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
           </div>
         )
       })()}
+
+      {/* Saved Meal Library */}
+      {(data.savedMealTemplates?.length ?? 0) > 0 && (
+        <div className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <button
+            onClick={() => setSavedMealsExpanded(e => !e)}
+            style={{ background: 'none', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', padding: 0, color: 'var(--text-main)' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '1rem' }}>
+              <Bookmark size={16} color="var(--primary)" /> Saved Meals ({data.savedMealTemplates!.length})
+            </div>
+            {savedMealsExpanded ? <ChevronUp size={18} color="var(--text-muted)" /> : <ChevronDown size={18} color="var(--text-muted)" />}
+          </button>
+          {savedMealsExpanded && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {data.savedMealTemplates!.map(template => (
+                <div key={template.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.8rem', background: 'rgba(255,255,255,0.04)', borderRadius: '0.8rem' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{template.name}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      <span style={{ color: 'var(--primary)' }}>{template.time}</span> · {template.calories} kcal{template.protein !== undefined ? ` · ${template.protein}g protein` : ''}{(template.items?.length ?? 0) > 0 ? ` · ${template.items!.length} items` : ''}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => addFromLibrary(template)}
+                    title="Add to this plan"
+                    style={{ background: 'rgba(100,255,218,0.12)', border: '1px solid rgba(100,255,218,0.3)', color: 'var(--primary)', borderRadius: '0.6rem', padding: '0.35rem 0.6rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, flexShrink: 0 }}
+                  >
+                    + Add
+                  </button>
+                  <button
+                    onClick={() => deleteFromLibrary(template.id)}
+                    title="Remove from library"
+                    style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', opacity: 0.6, cursor: 'pointer', flexShrink: 0, padding: 0 }}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Scheduled Meals */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

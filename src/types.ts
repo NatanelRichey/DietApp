@@ -46,12 +46,22 @@ export interface DailyLog {
   meals: Meal[];      // snapshot with completed state
 }
 
+export interface SavedMealTemplate {
+  id: string;
+  name: string;
+  time: string;
+  calories: number;
+  protein?: number;
+  items?: MealItem[];
+}
+
 export interface UserData {
   weightHistory: WeightEntry[];
   dayPlans: Record<string, DayPlan>;
   activePlanId: string;
   weekSchedule: Record<number, string>; // 0=Sun … 6=Sat → planId
   workoutSchedule?: Record<number, WorkoutDay>; // 0=Sun … 6=Sat
+  savedMealTemplates?: SavedMealTemplate[];
   documents: Document[];
   dailyLogs: Record<string, DailyLog>; // key: YYYY-MM-DD
   simCart?: SimCartData;
