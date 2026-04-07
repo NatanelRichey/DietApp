@@ -62,6 +62,7 @@ export interface UserData {
   weekSchedule: Record<number, string>; // 0=Sun … 6=Sat → planId
   workoutSchedule?: Record<number, WorkoutDay>; // 0=Sun … 6=Sat
   savedMealTemplates?: SavedMealTemplate[];
+  tdee?: number; // user-overridable TDEE (kcal/day)
   documents: Document[];
   dailyLogs: Record<string, DailyLog>; // key: YYYY-MM-DD
   simCart?: SimCartData;

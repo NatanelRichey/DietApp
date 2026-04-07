@@ -60,7 +60,8 @@ interface DashboardProps {
 
 // ── Component ────────────────────────────────────────────────────────────────
 const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
-  const { tdee: TDEE, dietStart: DIET_START_DATE, milestone: MILESTONE_DATE, hardcodedConsumed: HARDCODED_CONSUMED, showFasts } = getUserConfig(user)
+  const { tdee: configTdee, dietStart: DIET_START_DATE, milestone: MILESTONE_DATE, hardcodedConsumed: HARDCODED_CONSUMED, showFasts } = getUserConfig(user)
+  const TDEE = data.tdee ?? configTdee
   const [viewDate, setViewDate] = useState(new Date())
   const [deficitExpanded, setDeficitExpanded] = useState(false)
   const [journeyExpanded, setJourneyExpanded] = useState(false)
@@ -70,6 +71,8 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
   const saraSeedRef     = useRef(false)
   const natanWeightRef  = useRef(false)
   const [expandedMealId, setExpandedMealId] = useState<string | null>(null)
+  const [editingTdee, setEditingTdee] = useState(false)
+  const [tdeeInput, setTdeeInput] = useState('')
 
   // 1-second timer for animated deficit counter and side bar sync
   useEffect(() => {
@@ -286,7 +289,7 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
       const dow    = d.getDay()
       const planId = data.weekSchedule?.[dow] || data.activePlanId
       const plan   = data.dayPlans?.[planId]
-      const type   = plan?.type ?? planId ?? ''
+      const type   = plan?.type ?? ''
       const calories = plan?.meals.reduce((s, m) => s + m.calories, 0) ?? 0
       const isFast     = /fast/i.test(type)
       const isShabbat  = dow === 6
@@ -484,6 +487,32 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
           <div style={{ textAlign: 'right', color: 'var(--text-muted)', fontSize: '0.75rem', lineHeight: 1.6 }}>
             <div>since {format(DIET_START_DATE, 'MMM d')}</div>
             <div>{daysOnDiet} day{daysOnDiet !== 1 ? 's' : ''}</div>
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-end', marginTop: '0.2rem' }}
+              onClick={e => { e.stopPropagation(); setTdeeInput(String(TDEE)); setEditingTdee(true) }}
+            >
+              {editingTdee ? (
+                <input
+                  autoFocus
+                  type="number"
+                  value={tdeeInput}
+                  onChange={e => setTdeeInput(e.target.value)}
+                  onBlur={() => {
+                    const v = parseInt(tdeeInput)
+                    if (v > 0) setData({ ...data, tdee: v })
+                    setEditingTdee(false)
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { const v = parseInt(tdeeInput); if (v > 0) setData({ ...data, tdee: v }); setEditingTdee(false) }
+                    if (e.key === 'Escape') setEditingTdee(false)
+                  }}
+                  onClick={e => e.stopPropagation()}
+                  style={{ width: '70px', background: 'rgba(255,255,255,0.08)', border: '1px solid var(--primary)', borderRadius: '0.4rem', padding: '0.1rem 0.3rem', color: 'var(--text-main)', fontSize: '0.75rem', textAlign: 'right' }}
+                />
+              ) : (
+                <span style={{ cursor: 'pointer', borderBottom: '1px dotted rgba(255,255,255,0.3)' }} title="Tap to edit TDEE">TDEE {TDEE} kcal</span>
+              )}
+            </div>
           </div>
         </div>
 

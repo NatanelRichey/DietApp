@@ -39,7 +39,8 @@ interface Props {
 }
 
 const DeficitSideBars = ({ user, data }: Props) => {
-  const { tdee: TDEE, dietStart: DIET_START, hardcodedConsumed: HARDCODED_CONSUMED } = getConfig(user)
+  const { tdee: configTdee, dietStart: DIET_START, hardcodedConsumed: HARDCODED_CONSUMED } = getConfig(user)
+  const TDEE = data.tdee ?? configTdee
   const [elapsed, setElapsed] = useState(getElapsed)
   const [dismissedDailyDate, setDismissedDailyDate] = useState(
     () => localStorage.getItem('deficit-banner-daily') || ''
@@ -175,7 +176,7 @@ const DeficitSideBars = ({ user, data }: Props) => {
         <div style={trackStyle}>
           <div style={fillStyle(dailyBarFill)} />
         </div>
-        <div style={labelStyle}>D<br/>A<br/>I<br/>L<br/>Y</div>
+        <div style={labelStyle} title="Today's calorie deficit (accrues 10am–10pm)">D<br/>E<br/>F</div>
       </div>
 
       {/* Right bar — 1kg goal */}
@@ -184,7 +185,7 @@ const DeficitSideBars = ({ user, data }: Props) => {
         <div style={trackStyle}>
           <div style={fillStyle(kgBarFill)} />
         </div>
-        <div style={labelStyle}>1<br/>K<br/>G</div>
+        <div style={labelStyle} title={`Working toward kg ${kgMilestones + 1}`}>K<br/>G<br/>{kgMilestones + 1}</div>
       </div>
 
       {/* Banners */}

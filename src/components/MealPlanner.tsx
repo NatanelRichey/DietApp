@@ -77,6 +77,9 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
   const [newItem, setNewItem] = useState({ name: '', calories: '', protein: '' })
 
   const [savedMealsExpanded, setSavedMealsExpanded] = useState(false)
+  const [plannerTab, setPlannerTab] = useState<'plans' | 'meals'>('plans')
+  const [addToPlanTarget, setAddToPlanTarget] = useState('')
+  const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null)
 
   const [selectedDays, setSelectedDays] = useState<number[]>(() =>
     Object.entries(data.weekSchedule || {})
@@ -266,7 +269,7 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
     setData({ ...data, savedMealTemplates: [...(data.savedMealTemplates || []), template] })
   }
 
-  const addFromLibrary = (template: SavedMealTemplate) => {
+  const addFromLibrary = (template: SavedMealTemplate, targetPlanId?: string) => {
     const meal: Meal = {
       id: Math.random().toString(36).substr(2, 9),
       name: template.name,
@@ -276,8 +279,11 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
       items: template.items ? template.items.map(i => ({ ...i, id: Math.random().toString(36).substr(2, 9) })) : undefined,
       completed: false,
     }
-    const updatedMeals = [...currentPlan.meals, meal].sort((a, b) => a.time.localeCompare(b.time))
-    updatePlan({ ...currentPlan, meals: updatedMeals })
+    const pid = targetPlanId || editingPlanId
+    const plan = data.dayPlans[pid] || { type: pid, meals: [], guidelines: '' }
+    const updatedMeals = [...plan.meals, meal].sort((a, b) => a.time.localeCompare(b.time))
+    const updatedPlan = { ...plan, meals: updatedMeals }
+    setData({ ...data, dayPlans: { ...data.dayPlans, [pid]: updatedPlan } })
   }
 
   const deleteFromLibrary = (id: string) => {
@@ -289,6 +295,106 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
 
   return (
     <div className="meal-planner" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      {/* Tab switcher */}
+      <div style={{ display: 'flex', gap: '0.4rem', background: 'rgba(255,255,255,0.05)', borderRadius: '1rem', padding: '0.3rem' }}>
+        {(['plans', 'meals'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setPlannerTab(tab)}
+            style={{
+              flex: 1, padding: '0.6rem', borderRadius: '0.75rem', border: 'none', cursor: 'pointer', fontWeight: 700, fontSize: '0.88rem',
+              background: plannerTab === tab ? 'var(--primary)' : 'transparent',
+              color: plannerTab === tab ? 'var(--bg-deep)' : 'var(--text-muted)',
+              transition: 'all 0.15s ease', textTransform: 'capitalize',
+            }}
+          >
+            {tab === 'plans' ? 'Plans' : `Meals${(data.savedMealTemplates?.length ?? 0) > 0 ? ` (${data.savedMealTemplates!.length})` : ''}`}
+          </button>
+        ))}
+      </div>
+
+      {/* ── MEALS TAB ── */}
+      {plannerTab === 'meals' && (() => {
+        const templates = data.savedMealTemplates || []
+        const planKeys = Object.keys(data.dayPlans)
+        const targetPlan = addToPlanTarget || editingPlanId || planKeys[0] || ''
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {templates.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                <Bookmark size={32} style={{ opacity: 0.3, marginBottom: '0.8rem' }} />
+                <div>No saved meals yet.</div>
+                <div style={{ marginTop: '0.4rem', fontSize: '0.78rem' }}>Go to Plans, add a meal, then tap the bookmark icon to save it here.</div>
+              </div>
+            ) : (
+              <>
+                {/* Plan target selector */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  <span style={{ flexShrink: 0 }}>Add to:</span>
+                  <select
+                    value={targetPlan}
+                    onChange={e => setAddToPlanTarget(e.target.value)}
+                    style={{ flex: 1, padding: '0.4rem 0.6rem', background: 'rgba(255,255,255,0.07)', border: 'var(--border-glass)', borderRadius: '0.6rem', color: 'var(--text-main)', fontSize: '0.82rem' }}
+                  >
+                    {planKeys.map(k => <option key={k} value={k}>{k}</option>)}
+                  </select>
+                </div>
+
+                {/* Template cards */}
+                {templates.map(template => {
+                  const isExpanded = expandedTemplateId === template.id
+                  return (
+                    <div key={template.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', padding: '0.85rem 1rem' }}>
+                        <div style={{ background: 'rgba(100,255,218,0.1)', color: 'var(--primary)', padding: '0.45rem', borderRadius: '0.7rem', flexShrink: 0 }}>
+                          <Utensils size={16} />
+                        </div>
+                        <div
+                          style={{ flex: 1, minWidth: 0, cursor: (template.items?.length ?? 0) > 0 ? 'pointer' : 'default' }}
+                          onClick={() => (template.items?.length ?? 0) > 0 && setExpandedTemplateId(isExpanded ? null : template.id)}
+                        >
+                          <div style={{ fontWeight: 600, fontSize: '0.92rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{template.name}</div>
+                          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
+                            <span style={{ color: 'var(--primary)' }}>{template.time}</span> · {template.calories} kcal
+                            {template.protein !== undefined ? ` · ${template.protein}g protein` : ''}
+                            {(template.items?.length ?? 0) > 0 ? ` · ${template.items!.length} items` : ''}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => { addFromLibrary(template, targetPlan); }}
+                          title={`Add to ${targetPlan}`}
+                          style={{ background: 'rgba(100,255,218,0.12)', border: '1px solid rgba(100,255,218,0.3)', color: 'var(--primary)', borderRadius: '0.6rem', padding: '0.35rem 0.65rem', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700, flexShrink: 0 }}
+                        >
+                          + Add
+                        </button>
+                        <button
+                          onClick={() => deleteFromLibrary(template.id)}
+                          style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', opacity: 0.6, cursor: 'pointer', flexShrink: 0, padding: 0 }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                      {isExpanded && (template.items?.length ?? 0) > 0 && (
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '0.6rem 1rem 0.8rem' }}>
+                          {template.items!.map(item => (
+                            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.2rem 0', fontSize: '0.8rem' }}>
+                              <span style={{ color: 'var(--text-main)' }}>{item.name}</span>
+                              <span style={{ color: 'var(--text-muted)' }}>{item.calories} kcal{item.protein ? ` · ${item.protein}g` : ''}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* ── PLANS TAB ── */}
+      {plannerTab === 'plans' && <>
       {/* Day Type Selector */}
       <div className="glass" style={{ display: 'flex', gap: '0.5rem', padding: '0.5rem', borderRadius: '1.5rem', overflowX: 'auto' }}>
         {Object.keys(data.dayPlans).map(planId => (
@@ -655,6 +761,7 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
           <Calendar size={20} /> Set as Today's Plan
         </button>
       )}
+      </>}
     </div>
   )
 }
