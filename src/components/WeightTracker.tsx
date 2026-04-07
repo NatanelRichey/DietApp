@@ -63,6 +63,10 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
   const [mainTab, setMainTab]               = useState<'chart' | 'log'>('chart')
   const [logYear, setLogYear]               = useState(getYear(new Date()))
   const [logMonth, setLogMonth]             = useState(getMonth(new Date()))
+  const [showManualEntry, setShowManualEntry] = useState(false)
+  const [manualDate, setManualDate]           = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [manualTime, setManualTime]           = useState('10:00')
+  const [manualWeight, setManualWeight]       = useState('')
   const rulerRef         = useRef<HTMLDivElement>(null)
   const initialisedRef   = useRef(false)
   const snapTimeoutRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -97,6 +101,16 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
   const addWeight = () => {
     const entry: WeightEntry = { date: new Date().toISOString(), weight: currentWeight }
     setData({ ...data, weightHistory: [...(data.weightHistory || []), entry] })
+  }
+
+  const addManualWeight = () => {
+    const kg = parseFloat(manualWeight)
+    if (!manualDate || isNaN(kg) || kg < MIN_KG || kg > MAX_KG) return
+    const date = new Date(`${manualDate}T${manualTime || '00:00'}:00`).toISOString()
+    const entry: WeightEntry = { date, weight: kg }
+    setData({ ...data, weightHistory: [...(data.weightHistory || []), entry] })
+    setShowManualEntry(false)
+    setManualWeight('')
   }
 
   const deleteWeight = (entry: WeightEntry) => {
@@ -212,6 +226,47 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
         <button className="btn-primary" onClick={addWeight} style={{ marginTop: '1.5rem', width: '100%', justifyContent: 'center' }}>
           <Plus size={18} /> Log {currentWeight.toFixed(1)} kg
         </button>
+
+        {/* Manual entry toggle */}
+        <button
+          onClick={() => setShowManualEntry(v => !v)}
+          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.78rem', cursor: 'pointer', marginTop: '0.6rem', textDecoration: 'underline' }}
+        >
+          {showManualEntry ? 'Cancel manual entry' : 'Log for a different date / weight'}
+        </button>
+
+        {showManualEntry && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '0.6rem' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <input
+                type="number"
+                placeholder="Weight (kg)"
+                value={manualWeight}
+                onChange={e => setManualWeight(e.target.value)}
+                step="0.1"
+                className="glass"
+                style={{ padding: '0.7rem 0.9rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: '100px' }}
+              />
+              <input
+                type="date"
+                value={manualDate}
+                onChange={e => setManualDate(e.target.value)}
+                className="glass"
+                style={{ padding: '0.7rem 0.9rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: '120px' }}
+              />
+              <input
+                type="time"
+                value={manualTime}
+                onChange={e => setManualTime(e.target.value)}
+                className="glass"
+                style={{ padding: '0.7rem 0.9rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: '0 0 auto' }}
+              />
+            </div>
+            <button className="btn-primary" onClick={addManualWeight} style={{ width: '100%', justifyContent: 'center' }}>
+              <Plus size={16} /> Add Entry
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main tab switcher */}

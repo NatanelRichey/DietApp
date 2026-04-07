@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { format } from 'date-fns'
 import { Plus, Trash2, Calendar, Utensils, Info, Edit2, Save, GripVertical, X } from 'lucide-react' // Trash2/Utensils used in MealItem
-import type { DayPlan, Meal, UserData } from '../types'
+import type { DayPlan, Meal, MealItem, UserData } from '../types'
 
 interface MealItemProps {
   meal: Meal
@@ -43,7 +43,7 @@ const MealItem = ({ meal, isEditing, onEdit, onDelete }: MealItemProps) => {
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontWeight: 600, fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meal.name}</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              <span style={{ color: 'var(--primary)' }}>{meal.time}</span> · {meal.calories} kcal{meal.protein !== undefined ? ` · ${meal.protein}g protein` : ''}
+              <span style={{ color: 'var(--primary)' }}>{meal.time}</span> · {meal.calories} kcal{meal.protein !== undefined ? ` · ${meal.protein}g protein` : ''}{(meal.items?.length ?? 0) > 0 ? ` · ${meal.items!.length} items` : ''}
             </div>
           </div>
         </div>
@@ -74,6 +74,7 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
   const currentPlan = data.dayPlans[editingPlanId] || { type: editingPlanId, meals: [], guidelines: '' }
   const [newMeal, setNewMeal] = useState({ name: '', time: '12:00', calories: '', protein: '' })
   const [editingMealId, setEditingMealId] = useState<string | null>(null)
+  const [newItem, setNewItem] = useState({ name: '', calories: '', protein: '' })
 
   const [selectedDays, setSelectedDays] = useState<number[]>(() =>
     Object.entries(data.weekSchedule || {})
@@ -167,6 +168,44 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
   const cancelEdit = () => {
     setEditingMealId(null)
     setNewMeal({ name: '', time: '12:00', calories: '', protein: '' })
+    setNewItem({ name: '', calories: '', protein: '' })
+  }
+
+  const addItemToMeal = () => {
+    if (!newItem.name || !newItem.calories || !editingMealId) return
+    const item: MealItem = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: newItem.name,
+      calories: parseInt(newItem.calories),
+      protein: newItem.protein ? parseFloat(newItem.protein) : undefined,
+    }
+    const meal = currentPlan.meals.find(m => m.id === editingMealId)!
+    const updatedItems = [...(meal.items || []), item]
+    const totalCal  = updatedItems.reduce((s, it) => s + it.calories, 0)
+    const totalProt = updatedItems.reduce((s, it) => s + (it.protein ?? 0), 0)
+    const updatedMeals = currentPlan.meals.map(m =>
+      m.id === editingMealId
+        ? { ...m, items: updatedItems, calories: totalCal, protein: totalProt || undefined }
+        : m
+    )
+    updatePlan({ ...currentPlan, meals: updatedMeals })
+    setNewMeal(prev => ({ ...prev, calories: String(totalCal), protein: totalProt ? String(totalProt) : '' }))
+    setNewItem({ name: '', calories: '', protein: '' })
+  }
+
+  const removeItemFromMeal = (itemId: string) => {
+    if (!editingMealId) return
+    const meal = currentPlan.meals.find(m => m.id === editingMealId)!
+    const updatedItems = (meal.items || []).filter(i => i.id !== itemId)
+    const totalCal  = updatedItems.reduce((s, it) => s + it.calories, 0)
+    const totalProt = updatedItems.reduce((s, it) => s + (it.protein ?? 0), 0)
+    const updatedMeals = currentPlan.meals.map(m =>
+      m.id === editingMealId
+        ? { ...m, items: updatedItems, calories: updatedItems.length ? totalCal : m.calories, protein: updatedItems.length && totalProt ? totalProt : m.protein }
+        : m
+    )
+    updatePlan({ ...currentPlan, meals: updatedMeals })
+    if (updatedItems.length) setNewMeal(prev => ({ ...prev, calories: String(totalCal), protein: totalProt ? String(totalProt) : '' }))
   }
 
   const deleteMeal = (id: string) => {
@@ -417,6 +456,69 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
           </div>
         </div>
       </div>
+
+      {/* Food Items (shown when editing a meal) */}
+      {editingMealId && (() => {
+        const editingMeal = currentPlan.meals.find(m => m.id === editingMealId)
+        const items = editingMeal?.items || []
+        return (
+          <div className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: '1px solid var(--primary)' }}>
+            <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--primary)' }}>Food Items</h3>
+            {items.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {items.map(item => (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.4rem 0.6rem', background: 'rgba(255,255,255,0.04)', borderRadius: '0.6rem' }}>
+                    <div style={{ flex: 1, fontSize: '0.85rem' }}>{item.name}</div>
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', flexShrink: 0 }}>
+                      {item.calories} kcal{item.protein ? ` · ${item.protein}g` : ''}
+                    </div>
+                    <button onClick={() => removeItemFromMeal(item.id)} style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', opacity: 0.6, cursor: 'pointer', flexShrink: 0, padding: 0 }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                placeholder="Item name"
+                value={newItem.name}
+                onChange={e => setNewItem({ ...newItem, name: e.target.value })}
+                onKeyDown={e => e.key === 'Enter' && addItemToMeal()}
+                className="glass"
+                style={{ padding: '0.6rem 0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 2, minWidth: '100px', fontSize: '0.85rem' }}
+              />
+              <input
+                type="number"
+                placeholder="kcal"
+                value={newItem.calories}
+                onChange={e => setNewItem({ ...newItem, calories: e.target.value })}
+                onKeyDown={e => e.key === 'Enter' && addItemToMeal()}
+                className="glass"
+                style={{ padding: '0.6rem 0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: '60px', fontSize: '0.85rem' }}
+              />
+              <input
+                type="number"
+                placeholder="g protein"
+                value={newItem.protein}
+                onChange={e => setNewItem({ ...newItem, protein: e.target.value })}
+                onKeyDown={e => e.key === 'Enter' && addItemToMeal()}
+                className="glass"
+                style={{ padding: '0.6rem 0.8rem', borderRadius: '0.8rem', border: 'var(--border-glass)', color: 'var(--text-main)', flex: 1, minWidth: '70px', fontSize: '0.85rem' }}
+              />
+              <button onClick={addItemToMeal} className="btn-primary" style={{ flexShrink: 0, padding: '0.6rem 0.9rem' }}>
+                <Plus size={16} />
+              </button>
+            </div>
+            {items.length > 0 && (
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'right' }}>
+                Total: {items.reduce((s, i) => s + i.calories, 0)} kcal · {items.reduce((s, i) => s + (i.protein ?? 0), 0)}g protein
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Scheduled Meals */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

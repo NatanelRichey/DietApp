@@ -66,8 +66,10 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
   const [journeyExpanded, setJourneyExpanded] = useState(false)
   const [elapsed, setElapsed] = useState(getElapsed)
   const dateInputRef = useRef<HTMLInputElement>(null)
-  const seededRef     = useRef(false)
-  const saraSeedRef   = useRef(false)
+  const seededRef       = useRef(false)
+  const saraSeedRef     = useRef(false)
+  const natanWeightRef  = useRef(false)
+  const [expandedMealId, setExpandedMealId] = useState<string | null>(null)
 
   // 1-second timer for animated deficit counter and side bar sync
   useEffect(() => {
@@ -114,11 +116,23 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
     })
   }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Seed Natan's 97.5 kg weigh-in for 2026-04-06 at 10:00 AM
+  useEffect(() => {
+    if (user.toLowerCase() !== 'natan') { natanWeightRef.current = true; return }
+    if (natanWeightRef.current || loading) return
+    if (data.weightHistory?.some(e => e.date.startsWith('2026-04-06'))) { natanWeightRef.current = true; return }
+    natanWeightRef.current = true
+    setData({
+      ...data,
+      weightHistory: [...(data.weightHistory || []), { date: '2026-04-06T07:00:00.000Z', weight: 97.5 }],
+    })
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Seed Sara's meal plans on first load
   useEffect(() => {
     if (user.toLowerCase() !== 'sara') { saraSeedRef.current = true; return }
     if (saraSeedRef.current || loading) return
-    if (data.dayPlans?.['Breakfast 1']) { saraSeedRef.current = true; return }
+    if (data.dayPlans?.['Breakfast 1']?.meals?.[0]?.items) { saraSeedRef.current = true; return }
     saraSeedRef.current = true
     setData({
       ...data,
@@ -126,51 +140,63 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
       dayPlans: {
         'Breakfast 1': {
           type: 'Breakfast 1',
-          guidelines: 'Path 1 breakfast — 390 kcal / 35g protein. Pair with Lunch 1.',
-          meals: [
-            { id: 'sara-b1-eggs',    name: '2 Eggs',               time: '08:00', calories: 140, protein: 12,  completed: false },
-            { id: 'sara-b1-oil',     name: '1/2 tsp Oil',           time: '08:00', calories: 20,  protein: 0,   completed: false },
-            { id: 'sara-b1-cottage', name: '2 tbsp Cottage Cheese', time: '08:00', calories: 25,  protein: 3,   completed: false },
-            { id: 'sara-b1-pita',    name: '1 Spelt Pita',          time: '08:00', calories: 100, protein: 5,   completed: false },
-            { id: 'sara-b1-tuna',    name: 'Tuna (can in water)',   time: '08:00', calories: 105, protein: 25,  completed: false },
-            { id: 'sara-b1-pmilk',  name: 'Protein Milk',          time: '08:00', calories: 65,  protein: 6.5, completed: false },
-          ],
+          guidelines: 'Path 1 breakfast — 390 kcal / 51.5g protein. Pair with Lunch 1.',
+          meals: [{
+            id: 'sara-b1', name: 'Breakfast 1', time: '08:00', calories: 455, protein: 51.5, completed: false,
+            items: [
+              { id: 'sara-b1-eggs',    name: '2 Eggs',               calories: 140, protein: 12  },
+              { id: 'sara-b1-oil',     name: '1/2 tsp Oil',           calories: 20,  protein: 0   },
+              { id: 'sara-b1-cottage', name: '2 tbsp Cottage Cheese', calories: 25,  protein: 3   },
+              { id: 'sara-b1-pita',    name: '1 Spelt Pita',          calories: 100, protein: 5   },
+              { id: 'sara-b1-tuna',    name: 'Tuna (can in water)',   calories: 105, protein: 25  },
+              { id: 'sara-b1-pmilk',  name: 'Protein Milk',          calories: 65,  protein: 6.5 },
+            ],
+          }],
         },
         'Breakfast 2': {
           type: 'Breakfast 2',
           guidelines: 'Path 2 breakfast — 230 kcal / 33g protein. Pair with Lunch 2.',
-          meals: [
-            { id: 'sara-b2-cottage', name: 'Cottage Cheese', time: '08:00', calories: 25,  protein: 3,  completed: false },
-            { id: 'sara-b2-pita',    name: 'Pita',           time: '08:00', calories: 100, protein: 5,  completed: false },
-            { id: 'sara-b2-tuna',    name: 'Tuna',           time: '08:00', calories: 105, protein: 25, completed: false },
-          ],
+          meals: [{
+            id: 'sara-b2', name: 'Breakfast 2', time: '08:00', calories: 230, protein: 33, completed: false,
+            items: [
+              { id: 'sara-b2-cottage', name: 'Cottage Cheese', calories: 25,  protein: 3  },
+              { id: 'sara-b2-pita',    name: 'Pita',           calories: 100, protein: 5  },
+              { id: 'sara-b2-tuna',    name: 'Tuna',           calories: 105, protein: 25 },
+            ],
+          }],
         },
         'Lunch 1': {
           type: 'Lunch 1',
           guidelines: 'Path 1 lunch — 279 kcal base / 27g protein. Optionals: 1/2 Apple + 1/2 Banana add 100 kcal.',
-          meals: [
-            { id: 'sara-l1-protein', name: 'Protein Source',        time: '12:30', calories: 130, protein: 25, completed: false },
-            { id: 'sara-l1-corn',    name: 'Cornflakes',             time: '12:30', calories: 117, protein: 2,  completed: false },
-            { id: 'sara-l1-blue',    name: 'Blueberries (30g)',      time: '12:30', calories: 11,  protein: 0,  completed: false },
-            { id: 'sara-l1-honey',   name: 'Honey (1 tsp)',          time: '12:30', calories: 21,  protein: 0,  completed: false },
-            { id: 'sara-l1-apple',   name: '1/2 Apple (optional)',   time: '12:30', calories: 50,  protein: 0,  completed: false },
-            { id: 'sara-l1-banana',  name: '1/2 Banana (optional)',  time: '12:30', calories: 50,  protein: 0,  completed: false },
-          ],
+          meals: [{
+            id: 'sara-l1', name: 'Lunch 1', time: '12:30', calories: 379, protein: 27, completed: false,
+            items: [
+              { id: 'sara-l1-protein', name: 'Protein Source',       calories: 130, protein: 25 },
+              { id: 'sara-l1-corn',    name: 'Cornflakes',            calories: 117, protein: 2  },
+              { id: 'sara-l1-blue',    name: 'Blueberries (30g)',     calories: 11,  protein: 0  },
+              { id: 'sara-l1-honey',   name: 'Honey (1 tsp)',         calories: 21,  protein: 0  },
+              { id: 'sara-l1-apple',   name: '1/2 Apple (optional)',  calories: 50,  protein: 0  },
+              { id: 'sara-l1-banana',  name: '1/2 Banana (optional)', calories: 50,  protein: 0  },
+            ],
+          }],
         },
         'Lunch 2': {
           type: 'Lunch 2',
-          guidelines: 'Path 2 lunch — 528 kcal / 53g protein.',
-          meals: [
-            { id: 'sara-l2-protein', name: '1/2 Protein Source', time: '12:30', calories: 65,  protein: 12,  completed: false },
-            { id: 'sara-l2-powder',  name: 'Protein Powder',     time: '12:30', calories: 143, protein: 26,  completed: false },
-            { id: 'sara-l2-blue',    name: 'Blueberries (30g)',  time: '12:30', calories: 11,  protein: 0,   completed: false },
-            { id: 'sara-l2-corn',    name: 'Cornflakes (15g)',   time: '12:30', calories: 58,  protein: 1,   completed: false },
-            { id: 'sara-l2-honey',   name: 'Honey (1 tsp)',      time: '12:30', calories: 21,  protein: 0,   completed: false },
-            { id: 'sara-l2-flour',   name: 'Flour (2 tbsp)',     time: '12:30', calories: 55,  protein: 1.5, completed: false },
-            { id: 'sara-l2-egg',     name: '1 Egg',              time: '12:30', calories: 70,  protein: 6,   completed: false },
-            { id: 'sara-l2-oil',     name: '1/2 tsp Oil',        time: '12:30', calories: 20,  protein: 0,   completed: false },
-            { id: 'sara-l2-pmilk',   name: 'Protein Milk',       time: '12:30', calories: 65,  protein: 6.5, completed: false },
-          ],
+          guidelines: 'Path 2 lunch — 508 kcal / 53g protein.',
+          meals: [{
+            id: 'sara-l2', name: 'Lunch 2', time: '12:30', calories: 508, protein: 53, completed: false,
+            items: [
+              { id: 'sara-l2-protein', name: '1/2 Protein Source', calories: 65,  protein: 12  },
+              { id: 'sara-l2-powder',  name: 'Protein Powder',     calories: 143, protein: 26  },
+              { id: 'sara-l2-blue',    name: 'Blueberries (30g)',  calories: 11,  protein: 0   },
+              { id: 'sara-l2-corn',    name: 'Cornflakes (15g)',   calories: 58,  protein: 1   },
+              { id: 'sara-l2-honey',   name: 'Honey (1 tsp)',      calories: 21,  protein: 0   },
+              { id: 'sara-l2-flour',   name: 'Flour (2 tbsp)',     calories: 55,  protein: 1.5 },
+              { id: 'sara-l2-egg',     name: '1 Egg',              calories: 70,  protein: 6   },
+              { id: 'sara-l2-oil',     name: '1/2 tsp Oil',        calories: 20,  protein: 0   },
+              { id: 'sara-l2-pmilk',   name: 'Protein Milk',       calories: 65,  protein: 6.5 },
+            ],
+          }],
         },
         'General': {
           type: 'General',
@@ -612,36 +638,58 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
-            {currentMeals.map((meal) => (
-              <div
-                key={meal.id}
-                style={{
-                  display: 'flex', gap: '0.8rem', alignItems: 'center',
-                  background: meal.completed ? 'rgba(100,255,218,0.06)' : 'var(--bg-card)',
-                  padding: '0.9rem 1rem', borderRadius: '1rem',
-                  border: meal.completed ? '1px solid rgba(100,255,218,0.25)' : 'var(--border-glass)',
-                  transition: 'background 0.25s ease, border 0.25s ease',
-                }}
-              >
-                <button
-                  onClick={() => toggleMeal(meal.id)}
-                  style={{
-                    background: 'none', border: 'none', padding: 0,
-                    color: meal.completed ? 'var(--primary)' : 'var(--text-muted)',
-                    cursor: 'pointer', flexShrink: 0, display: 'flex',
-                  }}
-                >
-                  {meal.completed ? <CheckCircle2 size={24} /> : <Circle size={24} />}
-                </button>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {meal.name}
+            {currentMeals.map((meal) => {
+              const isExpanded = expandedMealId === meal.id
+              const hasItems = (meal.items?.length ?? 0) > 0
+              return (
+                <div key={meal.id} style={{ borderRadius: '1rem', overflow: 'hidden', border: meal.completed ? '1px solid rgba(100,255,218,0.25)' : 'var(--border-glass)', transition: 'border 0.25s ease' }}>
+                  <div
+                    style={{
+                      display: 'flex', gap: '0.8rem', alignItems: 'center',
+                      background: meal.completed ? 'rgba(100,255,218,0.06)' : 'var(--bg-card)',
+                      padding: '0.9rem 1rem',
+                      transition: 'background 0.25s ease',
+                    }}
+                  >
+                    <button
+                      onClick={() => toggleMeal(meal.id)}
+                      style={{ background: 'none', border: 'none', padding: 0, color: meal.completed ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer', flexShrink: 0, display: 'flex' }}
+                    >
+                      {meal.completed ? <CheckCircle2 size={24} /> : <Circle size={24} />}
+                    </button>
+                    <div
+                      onClick={() => hasItems && setExpandedMealId(isExpanded ? null : meal.id)}
+                      style={{ flex: 1, minWidth: 0, cursor: hasItems ? 'pointer' : 'default' }}
+                    >
+                      <div style={{ fontWeight: 600, fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{meal.name}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--accent-green)' }}>
+                        {meal.calories} kcal{meal.protein ? ` · ${meal.protein}g protein` : ''}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{meal.time}</div>
+                      {hasItems && (
+                        <button onClick={() => setExpandedMealId(isExpanded ? null : meal.id)} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}>
+                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--accent-green)' }}>{meal.calories} kcal</div>
+                  {isExpanded && hasItems && (
+                    <div style={{ background: 'rgba(0,0,0,0.15)', padding: '0.6rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                      {meal.items!.map(item => (
+                        <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+                          <span style={{ color: 'var(--text-main)' }}>{item.name}</span>
+                          <span style={{ color: 'var(--text-muted)', flexShrink: 0, marginLeft: '0.5rem' }}>
+                            {item.calories} kcal{item.protein ? ` · ${item.protein}g` : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', flexShrink: 0 }}>{meal.time}</div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

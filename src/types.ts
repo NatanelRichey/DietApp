@@ -1,9 +1,17 @@
+export interface MealItem {
+  id: string;
+  name: string;
+  calories: number;
+  protein?: number;
+}
+
 export interface Meal {
   id: string;
   name: string;
   time: string; // HH:mm
   calories: number;
   protein?: number; // grams
+  items?: MealItem[]; // optional food items; when present, calories/protein are summed from these
   completed: boolean;
 }
 
