@@ -85,6 +85,14 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initia
     }
   }, [isOpen])
 
+  // Pick up pre-captured screenshot when App.tsx delivers it after open
+  useEffect(() => {
+    if (isOpen && initialScreenshot) {
+      setScreenshot(initialScreenshot)
+      setCapturing(false)
+    }
+  }, [initialScreenshot, isOpen])
+
   const saveDraft = (draftData: Omit<Draft, 'id'>) => {
     const existing = loadDrafts()
     const draft: Draft = { id: crypto.randomUUID(), ...draftData }

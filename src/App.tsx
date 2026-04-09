@@ -32,6 +32,7 @@ const App = () => {
   // Double-tap tracking for header gestures
   const lastLogoTapRef = useRef(0)
   const lastClockTapRef = useRef(0)
+  const preCaptureRef = useRef<Promise<string | null> | null>(null)
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000)
@@ -43,19 +44,21 @@ const App = () => {
     sessionStorage.setItem('diet-app-user', username)
   }
 
-  const handleLogoTap = async () => {
+  const handleLogoTap = () => {
     const now = Date.now()
     if (now - lastLogoTapRef.current < DOUBLE_TAP_MS) {
+      // Second tap: open modal immediately, deliver screenshot when ready
       lastLogoTapRef.current = 0
-      try {
-        const dataUrl = await toPng(document.body, { quality: 0.8, pixelRatio: 1, skipFonts: true })
-        setPendingScreenshot(dataUrl)
-      } catch {
-        setPendingScreenshot(null)
-      }
+      setPendingScreenshot(null)
       setIsBugReporterOpen(true)
+      preCaptureRef.current
+        ?.then(dataUrl => { if (dataUrl) setPendingScreenshot(dataUrl) })
+        .catch(() => {})
+      preCaptureRef.current = null
     } else {
+      // First tap: kick off capture now so it's ready (or nearly ready) by second tap
       lastLogoTapRef.current = now
+      preCaptureRef.current = toPng(document.body, { quality: 0.8, pixelRatio: 1, skipFonts: true }).catch(() => null)
     }
   }
 
