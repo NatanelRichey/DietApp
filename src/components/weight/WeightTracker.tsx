@@ -253,6 +253,7 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
           chartView={chartView}
           setChartView={setChartView}
           activeChartData={activeChartData}
+          totalEntries={data.weightHistory?.length ?? 0}
           chartSegments={data.chartSegments || []}
           chartMilestones={data.chartMilestones || []}
           onDeleteSegment={deleteSegment}

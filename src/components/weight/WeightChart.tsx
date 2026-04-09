@@ -242,7 +242,11 @@ const WeightChart = ({
 
       {n < 2 ? (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem', fontSize: '0.85rem' }}>
-          Log at least 2 entries to see the chart.
+          {totalEntries < 2
+            ? 'Log at least 2 entries to see the chart.'
+            : chartView === 'week'
+              ? 'Need entries across multiple weeks to show week view.'
+              : 'Need entries across multiple months to show month view.'}
         </div>
       ) : (
         <div

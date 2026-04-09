@@ -39,12 +39,20 @@ const loadLocal = (user: string): UserData | null => {
   } catch { return null }
 }
 
-// Deep merge: union of both datasets, local wins on conflicts.
-// Prevents cloud fetch from overwriting locally-added plans/schedule.
+// Deep merge: cloud is authoritative for which keys EXIST (deletions).
+// Local wins on value conflicts within shared keys (offline edits).
+// This prevents deleted plans from reappearing via stale localStorage.
 const mergeUserData = (local: UserData, cloud: UserData): UserData => ({
   ...cloud,
   ...local,
-  dayPlans:      { ...cloud.dayPlans,      ...local.dayPlans },
+  // Cloud's plan list is authoritative: don't restore plans cloud deleted.
+  // But if local has edits to an existing plan, keep them.
+  dayPlans: Object.fromEntries(
+    Object.keys(cloud.dayPlans).map(key => [
+      key,
+      local.dayPlans?.[key] ? { ...cloud.dayPlans[key], ...local.dayPlans[key] } : cloud.dayPlans[key],
+    ])
+  ),
   weekSchedule:  { ...cloud.weekSchedule,  ...local.weekSchedule },
   dailyLogs:     { ...cloud.dailyLogs,     ...local.dailyLogs },
   weightHistory: local.weightHistory?.length ? local.weightHistory : (cloud.weightHistory ?? []),
