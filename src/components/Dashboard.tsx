@@ -136,7 +136,7 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
   useEffect(() => {
     if (user.toLowerCase() !== 'sara') { saraSeedRef.current = true; return }
     if (saraSeedRef.current || loading) return
-    if ((data.dayPlans?.['Plan 1']?.meals?.length ?? 0) >= 2) { saraSeedRef.current = true; return }
+    if (data.dayPlans?.['Plan 1'] != null) { saraSeedRef.current = true; return }
     saraSeedRef.current = true
     setData({
       ...data,

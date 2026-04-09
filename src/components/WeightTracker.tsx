@@ -81,6 +81,7 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
   const [showAddMilestone, setShowAddMilestone] = useState(false)
   const [msLabel, setMsLabel]                 = useState('')
   const [msDate, setMsDate]                   = useState('')
+  const [msTarget, setMsTarget]               = useState('')
   const rulerRef         = useRef<HTMLDivElement>(null)
   const initialisedRef   = useRef(false)
   const snapTimeoutRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -231,9 +232,36 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
 
   const addMilestone = () => {
     if (!msLabel || !msDate) return
-    const ms: ChartMilestone = { id: Date.now().toString(), label: msLabel, date: msDate }
+    const targetWeight = parseFloat(msTarget)
+    const ms: ChartMilestone = {
+      id: Date.now().toString(), label: msLabel, date: msDate,
+      ...(isNaN(targetWeight) ? {} : { targetWeight }),
+    }
     setData({ ...data, chartMilestones: [...(data.chartMilestones || []), ms] })
-    setMsLabel(''); setMsDate(''); setShowAddMilestone(false)
+    setMsLabel(''); setMsDate(''); setMsTarget(''); setShowAddMilestone(false)
+  }
+
+  // ── Trend for milestone on-track analysis ─────────────────────────────────
+  const weightTrend = useMemo(() => {
+    const history = data.weightHistory || []
+    if (history.length < 2) return null
+    const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    const weights = sorted.map(e => e.weight)
+    const { slope, intercept } = linReg(weights)
+    const lastDate = new Date(sorted[sorted.length - 1].date)
+    return { slope, intercept, n: weights.length, lastDate }
+  }, [data.weightHistory])
+
+  const getMilestoneAnalysis = (ms: ChartMilestone) => {
+    if (!weightTrend || ms.targetWeight == null) return null
+    const { slope, intercept, n, lastDate } = weightTrend
+    const msDate = new Date(ms.date)
+    const daysToMs = Math.round((msDate.getTime() - lastDate.getTime()) / 86400000)
+    const predictedWeight = Math.round((intercept + slope * (n - 1 + Math.max(0, daysToMs))) * 10) / 10
+    // Losing weight: on-track if predicted <= target; gaining: if predicted >= target
+    const onTrack = slope <= 0 ? predictedWeight <= ms.targetWeight : predictedWeight >= ms.targetWeight
+    const calToGo = daysToMs > 0 ? Math.round(Math.abs(predictedWeight - ms.targetWeight) * 7700 / daysToMs) : null
+    return { predictedWeight, onTrack, calToGo }
   }
   const deleteMilestone = (id: string) =>
     setData({ ...data, chartMilestones: (data.chartMilestones || []).filter(m => m.id !== id) })
@@ -432,7 +460,6 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
                       x2={format(new Date(seg.endDate), 'MMM d')}
                       fill={seg.color} fillOpacity={0.1}
                       stroke={seg.color} strokeOpacity={0.3} strokeWidth={1}
-                      label={{ value: seg.label, fill: seg.color, fontSize: 8, position: 'insideTopLeft' }}
                     />
                   ))}
 
@@ -477,8 +504,12 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
                   <Line
                     dataKey="weight" stroke="transparent" strokeWidth={0}
                     dot={(props: { cx?: number; cy?: number; payload?: ChartPoint }) => {
-                      if (props.payload?.weight == null || props.cx == null || props.cy == null) return <g key={`dot-empty-${props.cx}-${props.cy}`} />
-                      return <circle key={`dot-${props.cx}-${props.cy}`} cx={props.cx} cy={props.cy} r={4} fill="var(--primary)" stroke="var(--bg-card)" strokeWidth={2} />
+                      const { cx, cy, payload } = props
+                      if (payload?.weight == null || cx == null || cy == null) return <g key={`dot-empty-${cx}-${cy}`} />
+                      const isOutlier = payload.smooth != null && Math.abs(payload.weight - payload.smooth) > 1.5
+                      return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={isOutlier ? 5 : 4}
+                        fill={isOutlier ? '#F97316' : 'var(--primary)'}
+                        stroke="var(--bg-card)" strokeWidth={2} />
                     }}
                     connectNulls={false} isAnimationActive={false}
                   />
@@ -561,20 +592,43 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
                   <Plus size={13} /> Add
                 </button>
               </div>
-              {(data.chartMilestones || []).map(ms => (
-                <div key={ms.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-                  <Flag size={11} color="#F59E0B" />
-                  <span style={{ flex: 1, fontSize: '0.78rem' }}>{ms.label}</span>
-                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{format(new Date(ms.date), 'MMM d')}</span>
-                  <button onClick={() => deleteMilestone(ms.id)} style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', cursor: 'pointer', padding: '0.1rem', opacity: 0.6 }}><Trash2 size={12} /></button>
-                </div>
-              ))}
+              {(data.chartMilestones || []).map(ms => {
+                const analysis = getMilestoneAnalysis(ms)
+                return (
+                  <div key={ms.id} style={{ padding: '0.35rem 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Flag size={11} color="#F59E0B" />
+                      <span style={{ flex: 1, fontSize: '0.78rem' }}>{ms.label}</span>
+                      {ms.targetWeight != null && (
+                        <span style={{ fontSize: '0.68rem', color: '#F59E0B', fontWeight: 600 }}>{ms.targetWeight} kg</span>
+                      )}
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{format(new Date(ms.date), 'MMM d')}</span>
+                      <button onClick={() => deleteMilestone(ms.id)} style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', cursor: 'pointer', padding: '0.1rem', opacity: 0.6 }}><Trash2 size={12} /></button>
+                    </div>
+                    {analysis && (
+                      <div style={{ marginTop: '0.2rem', marginLeft: '1.4rem', fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span>Predicted: <span style={{ color: analysis.onTrack ? 'var(--primary)' : '#F97316' }}>{analysis.predictedWeight} kg</span></span>
+                        <span style={{ color: analysis.onTrack ? 'var(--primary)' : '#F97316', fontWeight: 700 }}>
+                          {analysis.onTrack ? '✓ On track' : '⚠ Off track'}
+                        </span>
+                        {!analysis.onTrack && analysis.calToGo != null && (
+                          <span>cut ~{analysis.calToGo} kcal/day</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
               {showAddMilestone && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.6rem' }}>
-                  <input placeholder="Label (e.g. Goal Weight)" value={msLabel} onChange={e => setMsLabel(e.target.value)} className="glass"
+                  <input placeholder="Label (e.g. Event / Goal)" value={msLabel} onChange={e => setMsLabel(e.target.value)} className="glass"
                     style={{ padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
-                  <input type="date" value={msDate} onChange={e => setMsDate(e.target.value)} className="glass"
-                    style={{ padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input type="date" value={msDate} onChange={e => setMsDate(e.target.value)} className="glass"
+                      style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
+                    <input type="number" placeholder="Target kg (opt.)" value={msTarget} onChange={e => setMsTarget(e.target.value)} step="0.1" className="glass"
+                      style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
+                  </div>
                   <button onClick={addMilestone} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
                     <Flag size={14} /> Add Milestone
                   </button>

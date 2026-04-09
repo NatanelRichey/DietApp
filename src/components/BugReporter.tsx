@@ -7,7 +7,8 @@ interface BugReporterProps {
   isOpen: boolean
   onClose: () => void
   user: string
-  initialScreenshot?: string | null
+  // undefined = pre-capture in-flight (show spinner), null = failed, string = ready
+  initialScreenshot?: string | null | undefined
 }
 
 interface Draft {
@@ -76,21 +77,25 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initia
     if (isOpen) {
       setReport('')
       setError(null)
+      setScreenshot(null)
       refreshDrafts()
-      if (initialScreenshot) {
+      // Don't start our own toPng — App.tsx always provides initialScreenshot.
+      // undefined means capture in-flight, so show spinner.
+      if (typeof initialScreenshot === 'string') {
         setScreenshot(initialScreenshot)
+        setCapturing(false)
       } else {
-        captureScreenshot()
+        setCapturing(true) // wait for App.tsx to deliver; null means it failed
+        if (initialScreenshot === null) setCapturing(false)
       }
     }
-  }, [isOpen])
+  }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Pick up pre-captured screenshot when App.tsx delivers it after open
+  // Pick up screenshot once App.tsx pre-capture resolves (undefined → string | null)
   useEffect(() => {
-    if (isOpen && initialScreenshot) {
-      setScreenshot(initialScreenshot)
-      setCapturing(false)
-    }
+    if (!isOpen || initialScreenshot === undefined) return
+    setScreenshot(initialScreenshot)
+    setCapturing(false)
   }, [initialScreenshot, isOpen])
 
   const saveDraft = (draftData: Omit<Draft, 'id'>) => {

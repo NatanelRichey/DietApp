@@ -13,6 +13,7 @@ export interface Meal {
   protein?: number; // grams
   items?: MealItem[]; // optional food items; when present, calories/protein are summed from these
   completed: boolean;
+  templateId?: string; // set when added from a saved meal template; used to propagate template edits
 }
 
 export interface WorkoutDay {
@@ -68,6 +69,7 @@ export interface ChartMilestone {
   id: string;
   label: string;
   date: string; // YYYY-MM-DD
+  targetWeight?: number; // kg — when set, on-track analysis is shown
 }
 
 export interface UserData {

@@ -21,6 +21,12 @@ const NATAN_SEED: Record<number, WorkoutDay> = {
   6: { gym: false, cardio: false, walk: true,  notes: 'eat less' },
 }
 
+const ACTIVITY_KEYS = [
+  { key: 'gym',    label: 'Gym',    Icon: Dumbbell  },
+  { key: 'cardio', label: 'Cardio', Icon: Wind      },
+  { key: 'walk',   label: 'Walk',   Icon: Footprints },
+] as const
+
 const WorkoutSchedule = ({ user, data, setData, loading }: WorkoutScheduleProps) => {
   const seedRef = useRef(false)
 
@@ -54,75 +60,91 @@ const WorkoutSchedule = ({ user, data, setData, loading }: WorkoutScheduleProps)
           <Dumbbell size={18} color="var(--primary)" /> Weekly Schedule
         </h3>
 
-        {/* Header row */}
-        <div style={{ display: 'grid', gridTemplateColumns: '2.8rem 1fr 1fr 1fr 1fr', gap: '0.4rem', marginBottom: '0.6rem', padding: '0 0.2rem' }}>
-          <div />
-          {[{ label: 'Gym', icon: <Dumbbell size={13} /> }, { label: 'Cardio', icon: <Wind size={13} /> }, { label: 'Walk', icon: <Footprints size={13} /> }].map(({ label, icon }) => (
-            <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem', fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              {icon}{label}
-            </div>
-          ))}
-          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', paddingLeft: '0.3rem' }}>Notes</div>
-        </div>
-
-        {/* Day rows */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
           {DAY_LABELS.map((label, day) => {
             const d = schedule[day] ?? { gym: false, cardio: false, walk: false, notes: '' }
+            const isActive = d.gym || d.cardio || d.walk
             return (
               <div
                 key={day}
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '2.8rem 1fr 1fr 1fr 1fr',
-                  gap: '0.4rem',
-                  alignItems: 'center',
-                  padding: '0.55rem 0.2rem',
-                  borderRadius: '0.8rem',
-                  background: 'rgba(255,255,255,0.03)',
+                  borderRadius: '1rem',
+                  background: isActive ? 'rgba(100,255,218,0.05)' : 'rgba(255,255,255,0.03)',
+                  border: isActive ? '1px solid rgba(100,255,218,0.12)' : '1px solid rgba(255,255,255,0.06)',
+                  overflow: 'hidden',
+                  transition: 'all 0.15s ease',
                 }}
               >
-                <div style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-muted)' }}>{label}</div>
+                {/* Top row: day label + activity toggles */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '3.2rem 1fr 1fr 1fr',
+                  gap: '0.5rem',
+                  padding: '0.75rem 0.85rem 0.5rem',
+                  alignItems: 'center',
+                }}>
+                  <div style={{
+                    fontWeight: 800,
+                    fontSize: '0.88rem',
+                    color: isActive ? 'var(--text-main)' : 'var(--text-muted)',
+                  }}>
+                    {label}
+                  </div>
 
-                {(['gym', 'cardio', 'walk'] as const).map(key => (
-                  <button
-                    key={key}
-                    onClick={() => updateDay(day, { [key]: !d[key] })}
+                  {ACTIVITY_KEYS.map(({ key, label: actLabel, Icon }) => (
+                    <button
+                      key={key}
+                      onClick={() => updateDay(day, { [key]: !d[key] })}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.2rem',
+                        padding: '0.55rem 0.25rem',
+                        borderRadius: '0.75rem',
+                        border: 'none',
+                        background: d[key]
+                          ? 'rgba(100,255,218,0.18)'
+                          : 'rgba(255,255,255,0.05)',
+                        color: d[key] ? 'var(--primary)' : 'var(--text-muted)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        userSelect: 'none',
+                        WebkitTapHighlightColor: 'transparent',
+                      }}
+                    >
+                      <Icon size={15} />
+                      <span style={{ fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.04em' }}>
+                        {d[key] ? 'ON' : 'OFF'}
+                      </span>
+                      <span style={{ fontSize: '0.58rem', color: 'inherit', opacity: 0.7 }}>
+                        {actLabel}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Bottom row: full-width notes */}
+                <div style={{ padding: '0 0.85rem 0.75rem' }}>
+                  <input
+                    type="text"
+                    value={d.notes}
+                    onChange={e => updateDay(day, { notes: e.target.value })}
+                    placeholder={`${label} notes...`}
                     style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '0.35rem',
+                      width: '100%',
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid rgba(255,255,255,0.08)',
                       borderRadius: '0.6rem',
-                      border: d[key] ? '2px solid var(--primary)' : 'var(--border-glass)',
-                      background: d[key] ? 'rgba(100,255,218,0.15)' : 'transparent',
-                      color: d[key] ? 'var(--primary)' : 'var(--text-muted)',
-                      cursor: 'pointer',
+                      padding: '0.45rem 0.7rem',
+                      color: 'var(--text-main)',
                       fontSize: '0.8rem',
-                      fontWeight: 700,
-                      transition: 'all 0.15s ease',
+                      fontFamily: 'inherit',
+                      boxSizing: 'border-box',
                     }}
-                  >
-                    {d[key] ? '✓' : '–'}
-                  </button>
-                ))}
-
-                <input
-                  type="text"
-                  value={d.notes}
-                  onChange={e => updateDay(day, { notes: e.target.value })}
-                  placeholder="Notes..."
-                  style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: 'var(--border-glass)',
-                    borderRadius: '0.6rem',
-                    padding: '0.35rem 0.5rem',
-                    color: 'var(--text-main)',
-                    fontSize: '0.78rem',
-                    width: '100%',
-                    fontFamily: 'inherit',
-                  }}
-                />
+                  />
+                </div>
               </div>
             )
           })}

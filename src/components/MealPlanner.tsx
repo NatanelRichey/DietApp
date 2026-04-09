@@ -3,6 +3,54 @@ import { Reorder, useDragControls } from 'framer-motion'
 import { Plus, Trash2, Calendar, Utensils, Info, Edit2, Save, GripVertical, X, Bookmark, ChevronDown, ChevronUp } from 'lucide-react'
 import type { DayPlan, Meal, MealItem, SavedMealTemplate, UserData } from '../types'
 
+// ── Editable + draggable food item row ───────────────────────────────────────
+interface EditableItemRowProps {
+  item: MealItem
+  isEditing: boolean
+  editForm: { name: string; calories: string; protein: string }
+  onEditFormChange: (f: { name: string; calories: string; protein: string }) => void
+  onStartEdit: () => void
+  onSaveEdit: () => void
+  onCancelEdit: () => void
+  onDelete: () => void
+}
+
+const EditableItemRow = ({ item, isEditing, editForm, onEditFormChange, onStartEdit, onSaveEdit, onCancelEdit, onDelete }: EditableItemRowProps) => {
+  const controls = useDragControls()
+  return (
+    <Reorder.Item value={item} dragListener={false} dragControls={controls} as="div" style={{ listStyle: 'none' }}>
+      {isEditing ? (
+        <div style={{ display: 'flex', gap: '0.35rem', padding: '0.4rem 0.6rem', background: 'rgba(100,255,218,0.06)', borderRadius: '0.6rem', border: '1px solid rgba(100,255,218,0.2)', flexWrap: 'wrap', alignItems: 'center' }}>
+          <input autoFocus type="text" value={editForm.name} onChange={e => onEditFormChange({ ...editForm, name: e.target.value })}
+            className="glass" style={{ flex: 2, minWidth: '80px', padding: '0.3rem 0.5rem', borderRadius: '0.5rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.82rem' }} />
+          <input type="number" value={editForm.calories} onChange={e => onEditFormChange({ ...editForm, calories: e.target.value })}
+            placeholder="kcal" className="glass" style={{ flex: 1, minWidth: '50px', padding: '0.3rem 0.5rem', borderRadius: '0.5rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.82rem' }} />
+          <input type="number" value={editForm.protein} onChange={e => onEditFormChange({ ...editForm, protein: e.target.value })}
+            placeholder="g" className="glass" style={{ flex: 1, minWidth: '48px', padding: '0.3rem 0.5rem', borderRadius: '0.5rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.82rem' }} />
+          <button onClick={onSaveEdit} style={{ background: 'var(--primary)', border: 'none', color: 'var(--bg-deep)', borderRadius: '0.45rem', padding: '0.3rem 0.6rem', cursor: 'pointer', fontWeight: 700, fontSize: '0.78rem', flexShrink: 0 }}>✓</button>
+          <button onClick={onCancelEdit} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem', flexShrink: 0 }}>✕</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.6rem', background: 'rgba(255,255,255,0.04)', borderRadius: '0.6rem' }}>
+          <div onPointerDown={e => controls.start(e)} style={{ cursor: 'grab', touchAction: 'none', color: 'var(--text-muted)', opacity: 0.4, flexShrink: 0 }}>
+            <GripVertical size={13} />
+          </div>
+          <div onClick={onStartEdit} style={{ flex: 1, fontSize: '0.85rem', cursor: 'pointer' }}>{item.name}</div>
+          <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', flexShrink: 0 }}>
+            {item.calories} kcal{item.protein ? ` · ${item.protein}g` : ''}
+          </div>
+          <button onClick={onStartEdit} style={{ background: 'none', border: 'none', color: 'var(--primary)', opacity: 0.6, cursor: 'pointer', flexShrink: 0, padding: 0 }}>
+            <Edit2 size={12} />
+          </button>
+          <button onClick={onDelete} style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', opacity: 0.6, cursor: 'pointer', flexShrink: 0, padding: 0 }}>
+            <Trash2 size={13} />
+          </button>
+        </div>
+      )}
+    </Reorder.Item>
+  )
+}
+
 interface MealItemProps {
   meal: Meal
   isEditing: boolean
@@ -84,6 +132,12 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
   const [templateForm, setTemplateForm] = useState({ name: '', time: '08:00', calories: '', protein: '' })
   const [templateItems, setTemplateItems] = useState<MealItem[]>([])
   const [newTemplateItem, setNewTemplateItem] = useState({ name: '', calories: '', protein: '' })
+  // Inline item editing — Plans tab
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
+  const [editItemForm, setEditItemForm] = useState({ name: '', calories: '', protein: '' })
+  // Inline item editing — Meals tab template form
+  const [editingTemplateItemId, setEditingTemplateItemId] = useState<string | null>(null)
+  const [editTemplateItemForm, setEditTemplateItemForm] = useState({ name: '', calories: '', protein: '' })
 
   const [selectedDays, setSelectedDays] = useState<number[]>(() =>
     Object.entries(data.weekSchedule || {})
@@ -222,6 +276,68 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
     updatePlan({ ...currentPlan, meals: updatedMeals })
   }
 
+  // ── Plan-tab item inline editing ─────────────────────────────────────────
+  const startEditItem = (item: MealItem) => {
+    setEditingItemId(item.id)
+    setEditItemForm({ name: item.name, calories: String(item.calories), protein: item.protein !== undefined ? String(item.protein) : '' })
+  }
+
+  const saveEditItem = () => {
+    if (!editingItemId || !editItemForm.name || !editItemForm.calories || !editingMealId) return
+    const meal = currentPlan.meals.find(m => m.id === editingMealId)!
+    const updatedItems = (meal.items || []).map(i =>
+      i.id === editingItemId
+        ? { ...i, name: editItemForm.name, calories: parseInt(editItemForm.calories), protein: editItemForm.protein ? parseFloat(editItemForm.protein) : undefined }
+        : i
+    )
+    const totalCal  = updatedItems.reduce((s, it) => s + it.calories, 0)
+    const totalProt = updatedItems.reduce((s, it) => s + (it.protein ?? 0), 0)
+    const updatedMeals = currentPlan.meals.map(m =>
+      m.id === editingMealId ? { ...m, items: updatedItems, calories: totalCal, protein: totalProt || undefined } : m
+    )
+    updatePlan({ ...currentPlan, meals: updatedMeals })
+    setNewMeal(prev => ({ ...prev, calories: String(totalCal), protein: totalProt ? String(totalProt) : '' }))
+    setEditingItemId(null)
+  }
+
+  const reorderItemsInMeal = (newItems: MealItem[]) => {
+    if (!editingMealId) return
+    const totalCal  = newItems.reduce((s, it) => s + it.calories, 0)
+    const totalProt = newItems.reduce((s, it) => s + (it.protein ?? 0), 0)
+    const updatedMeals = currentPlan.meals.map(m =>
+      m.id === editingMealId
+        ? { ...m, items: newItems, calories: newItems.length ? totalCal : m.calories, protein: newItems.length && totalProt ? totalProt : m.protein }
+        : m
+    )
+    updatePlan({ ...currentPlan, meals: updatedMeals })
+  }
+
+  // ── Meals-tab template item inline editing ───────────────────────────────
+  const startEditTemplateItem = (item: MealItem) => {
+    setEditingTemplateItemId(item.id)
+    setEditTemplateItemForm({ name: item.name, calories: String(item.calories), protein: item.protein !== undefined ? String(item.protein) : '' })
+  }
+
+  const saveEditTemplateItem = () => {
+    if (!editingTemplateItemId || !editTemplateItemForm.name || !editTemplateItemForm.calories) return
+    const updated = templateItems.map(i =>
+      i.id === editingTemplateItemId
+        ? { ...i, name: editTemplateItemForm.name, calories: parseInt(editTemplateItemForm.calories), protein: editTemplateItemForm.protein ? parseFloat(editTemplateItemForm.protein) : undefined }
+        : i
+    )
+    setTemplateItems(updated)
+    setTemplateForm(f => ({
+      ...f,
+      calories: String(updated.reduce((s, i) => s + i.calories, 0)),
+      protein: String(updated.reduce((s, i) => s + (i.protein ?? 0), 0) || ''),
+    }))
+    setEditingTemplateItemId(null)
+  }
+
+  const reorderTemplateItems = (newItems: MealItem[]) => {
+    setTemplateItems(newItems)
+  }
+
   const deletePlanType = (planId: string) => {
     const planCount = Object.keys(data.dayPlans).length
     if (planCount <= 1) { alert('Cannot delete the only plan.'); return }
@@ -282,6 +398,7 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
       protein: template.protein,
       items: template.items ? template.items.map(i => ({ ...i, id: Math.random().toString(36).substr(2, 9) })) : undefined,
       completed: false,
+      templateId: template.id,
     }
     const pid = targetPlanId || editingPlanId
     const plan = data.dayPlans[pid] || { type: pid, meals: [], guidelines: '' }
@@ -351,10 +468,27 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
       items: templateItems.length > 0 ? templateItems : undefined,
     }
     const existing = data.savedMealTemplates || []
-    const updated = editingTemplateId
+    const updatedTemplates = editingTemplateId
       ? existing.map(t => t.id === editingTemplateId ? template : t)
       : [...existing, template]
-    setData({ ...data, savedMealTemplates: updated })
+
+    // Propagate edits to any plan meals that were originally added from this template
+    let updatedPlans = data.dayPlans
+    if (editingTemplateId) {
+      const newPlans: Record<string, DayPlan> = {}
+      Object.entries(data.dayPlans).forEach(([planId, plan]) => {
+        const updatedMeals = plan.meals.map(m =>
+          m.templateId === editingTemplateId
+            ? { ...m, name: template.name, time: template.time, calories: template.calories, protein: template.protein,
+                items: template.items ? template.items.map(i => ({ ...i, id: Math.random().toString(36).substr(2, 9) })) : m.items }
+            : m
+        )
+        newPlans[planId] = { ...plan, meals: updatedMeals }
+      })
+      updatedPlans = newPlans
+    }
+
+    setData({ ...data, savedMealTemplates: updatedTemplates, dayPlans: updatedPlans })
     setTemplateFormOpen(false)
     setEditingTemplateId(null)
   }
@@ -420,17 +554,25 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
                   </div>
                 </div>
 
-                {/* Items */}
+                {/* Items — draggable + click-to-edit */}
                 {templateItems.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <Reorder.Group
+                    axis="y" values={templateItems} onReorder={reorderTemplateItems}
+                    style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', listStyle: 'none', padding: 0, margin: 0 }}
+                  >
                     {templateItems.map(item => (
-                      <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.35rem 0.6rem', background: 'rgba(255,255,255,0.04)', borderRadius: '0.6rem' }}>
-                        <div style={{ flex: 1, fontSize: '0.85rem' }}>{item.name}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.calories} kcal{item.protein ? ` · ${item.protein}g` : ''}</div>
-                        <button onClick={() => removeTemplateItem(item.id)} style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', opacity: 0.6, cursor: 'pointer', padding: 0 }}><Trash2 size={13} /></button>
-                      </div>
+                      <EditableItemRow
+                        key={item.id} item={item}
+                        isEditing={editingTemplateItemId === item.id}
+                        editForm={editTemplateItemForm}
+                        onEditFormChange={setEditTemplateItemForm}
+                        onStartEdit={() => startEditTemplateItem(item)}
+                        onSaveEdit={saveEditTemplateItem}
+                        onCancelEdit={() => setEditingTemplateItemId(null)}
+                        onDelete={() => removeTemplateItem(item.id)}
+                      />
                     ))}
-                  </div>
+                  </Reorder.Group>
                 )}
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                   <input type="text" placeholder="Item name"
@@ -760,19 +902,23 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
           <div className="card glass" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', border: '1px solid var(--primary)' }}>
             <h3 style={{ margin: 0, fontSize: '0.9rem', color: 'var(--primary)' }}>Food Items</h3>
             {items.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              <Reorder.Group
+                axis="y" values={items} onReorder={reorderItemsInMeal}
+                style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', listStyle: 'none', padding: 0, margin: 0 }}
+              >
                 {items.map(item => (
-                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.4rem 0.6rem', background: 'rgba(255,255,255,0.04)', borderRadius: '0.6rem' }}>
-                    <div style={{ flex: 1, fontSize: '0.85rem' }}>{item.name}</div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', flexShrink: 0 }}>
-                      {item.calories} kcal{item.protein ? ` · ${item.protein}g` : ''}
-                    </div>
-                    <button onClick={() => removeItemFromMeal(item.id)} style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', opacity: 0.6, cursor: 'pointer', flexShrink: 0, padding: 0 }}>
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+                  <EditableItemRow
+                    key={item.id} item={item}
+                    isEditing={editingItemId === item.id}
+                    editForm={editItemForm}
+                    onEditFormChange={setEditItemForm}
+                    onStartEdit={() => startEditItem(item)}
+                    onSaveEdit={saveEditItem}
+                    onCancelEdit={() => setEditingItemId(null)}
+                    onDelete={() => removeItemFromMeal(item.id)}
+                  />
                 ))}
-              </div>
+              </Reorder.Group>
             )}
             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
               <input

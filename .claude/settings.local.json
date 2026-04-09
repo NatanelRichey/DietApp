@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm show:*)",
+      "Bash(ls *.json)",
+      "Bash(node scripts/pull-bugs.js)",
+      "Bash(curl -s -X PATCH https://diet-app-gray-ten.vercel.app/api/bugs -H 'Content-Type: application/json' -d '{\"id\":\"e959c22f-e803-4858-a9b0-ee1afd3c3b3d\",\"status\":\"solved\"}')",
+      "Bash(curl -s -X PATCH https://diet-app-gray-ten.vercel.app/api/bugs -H 'Content-Type: application/json' -d '{\"id\":\"e9f1563e-b27a-44e3-9975-eacb0598f883\",\"status\":\"solved\"}')",
+      "Bash(curl -s -X PATCH https://diet-app-gray-ten.vercel.app/api/bugs -H 'Content-Type: application/json' -d '{\"id\":\"f3cb9646-9b7a-420a-8d2f-1818ee88c711\",\"status\":\"solved\"}')",
+      "Bash(curl -s https://diet-app-gray-ten.vercel.app/api/bugs)",
+      "Bash(node -e \"const d=require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\); const bugs=JSON.parse\\(d\\); bugs.filter\\(b=>['e959c22f-e803-4858-a9b0-ee1afd3c3b3d','e9f1563e-b27a-44e3-9975-eacb0598f883'].includes\\(b.id\\)\\).forEach\\(b=>console.log\\(b.id, b.status\\)\\)\")",
+      "Bash(curl -s \"https://diet-app-gray-ten.vercel.app/api/bugs\" -o /tmp/bugs.json)",
+      "Bash(node -e \"const bugs=require\\('/tmp/bugs.json'\\); bugs.filter\\(b=>['e959c22f-e803-4858-a9b0-ee1afd3c3b3d','e9f1563e-b27a-44e3-9975-eacb0598f883'].includes\\(b.id\\)\\).forEach\\(b=>console.log\\(b.id, b.status\\)\\)\")",
+      "Bash(curl -s \"https://diet-app-gray-ten.vercel.app/api/bugs\" -o \"C:/Users/Natanel Richey/Desktop/Projects/DietApp/bugs_check.json\")",
+      "Bash(node -e \"const bugs=require\\('./bugs_check.json'\\); bugs.filter\\(b=>['e959c22f-e803-4858-a9b0-ee1afd3c3b3d','e9f1563e-b27a-44e3-9975-eacb0598f883'].includes\\(b.id\\)\\).forEach\\(b=>console.log\\(b.id, b.status\\)\\)\")",
+      "Bash(node scripts/backup-blob.js)",
+      "Bash(node -e ':*)",
+      "Bash(node --input-type=module)",
+      "Bash(node -e \"process.stdin.resume\\(\\);process.stdin.setEncoding\\('utf8'\\);let d='';process.stdin.on\\('data',c=>d+=c\\);process.stdin.on\\('end',\\(\\)=>{const b=JSON.parse\\(d\\);console.log\\(b.id,b.status\\)}\\)\")",
+      "Bash(node -e \" const d = require\\('fs'\\).readFileSync\\('/dev/stdin','utf8'\\); \")",
+      "Bash(node -e \" const bugs = require\\('C:/temp_bugs.json'\\); const open = bugs.filter\\(b => b.status === 'pending'\\); console.log\\('Total pending in API:', open.length\\); open.forEach\\(b => console.log\\(b.id, '|', b.user, '|', b.timestamp.slice\\(0,16\\), '|', b.report.slice\\(0,80\\)\\)\\); \")",
+      "Bash(curl -s \"https://diet-app-gray-ten.vercel.app/api/bugs\" -o bugs_live.json)",
+      "Bash(rm bugs_live.json)",
+      "Bash(curl -s -X POST https://diet-app-gray-ten.vercel.app/api/bugs -H 'Content-Type: application/json' -d '{\"report\":\"TEST BUG - DELETE ME\",\"screenshot\":\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==\",\"user\":\"Natan\",\"timestamp\":\"2026-04-09T10:00:00.000Z\",\"deviceInfo\":{\"viewportWidth\":753,\"viewportHeight\":1132,\"userAgent\":\"test\",\"url\":\"test\"}}')",
+      "Bash(npx tsc:*)"
+    ]
+  }
+}

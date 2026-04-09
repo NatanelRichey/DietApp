@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm uninstall:*)",
+      "Bash(curl -s -X PATCH https://diet-app-gray-ten.vercel.app/api/bugs -H 'Content-Type: application/json' -d '{\"id\":\"490dcbaa-552c-4e25-828e-4bf6396b23a5\",\"status\":\"solved\"}')",
+      "Bash(npm run:*)",
+      "Bash(curl -s -X POST https://diet-app-gray-ten.vercel.app/api/users -H 'Content-Type: application/json' -d '{\"action\":\"add\",\"name\":\"Sara\",\"pin\":\"1509\"}')",
+      "Bash(curl -s -X PATCH https://diet-app-gray-ten.vercel.app/api/bugs -H 'Content-Type: application/json' -d '{\"id\":\"7c000de6-c8e9-47cb-a76a-d0265ed48df9\",\"status\":\"solved\"}')",
+      "Bash(curl -s \"https://diet-app-gray-ten.vercel.app/api/bugs\")",
+      "Bash(python3 -c \"import sys,json; bugs=json.load\\(sys.stdin\\); [print\\(b['id'], b['status']\\) for b in bugs]\")",
+      "Bash(node -e \"const d=[];process.stdin.on\\('data',c=>d.push\\(c\\)\\);process.stdin.on\\('end',\\(\\)=>{JSON.parse\\(d.join\\(''\\)\\).forEach\\(b=>console.log\\(b.id, b.status\\)\\)}\\)\")",
+      "Bash(node scripts/pull-bugs.js --list)"
+    ]
+  }
+}

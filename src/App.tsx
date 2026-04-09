@@ -15,7 +15,7 @@ import DeficitSideBars from './components/DeficitSideBars'
 import WorkoutSchedule from './components/WorkoutSchedule'
 import useDatabase, { DEFAULT_DATA } from './hooks/useDatabase'
 
-const DOUBLE_TAP_MS = 300
+const DOUBLE_TAP_MS = 500
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -27,7 +27,8 @@ const App = () => {
   const { data, setData, loading, syncStatus } = useDatabase(user, DEFAULT_DATA)
 
   const [isBugReporterOpen, setIsBugReporterOpen] = useState(false)
-  const [pendingScreenshot, setPendingScreenshot] = useState<string | null>(null)
+  // undefined = pre-capture in-flight, null = capture failed, string = ready
+  const [pendingScreenshot, setPendingScreenshot] = useState<string | null | undefined>(undefined)
 
   // Double-tap tracking for header gestures
   const lastLogoTapRef = useRef(0)
@@ -49,11 +50,11 @@ const App = () => {
     if (now - lastLogoTapRef.current < DOUBLE_TAP_MS) {
       // Second tap: open modal immediately, deliver screenshot when ready
       lastLogoTapRef.current = 0
-      setPendingScreenshot(null)
+      setPendingScreenshot(undefined) // undefined = still capturing (shows spinner in BugReporter)
       setIsBugReporterOpen(true)
       preCaptureRef.current
-        ?.then(dataUrl => { if (dataUrl) setPendingScreenshot(dataUrl) })
-        .catch(() => {})
+        ?.then(dataUrl => setPendingScreenshot(dataUrl ?? null)) // null = failed
+        .catch(() => setPendingScreenshot(null))
       preCaptureRef.current = null
     } else {
       // First tap: kick off capture now so it's ready (or nearly ready) by second tap
@@ -242,7 +243,7 @@ const App = () => {
 
       <BugReporter
         isOpen={isBugReporterOpen}
-        onClose={() => { setIsBugReporterOpen(false); setPendingScreenshot(null) }}
+        onClose={() => { setIsBugReporterOpen(false); setPendingScreenshot(undefined) }}
         user={user || 'Guest'}
         initialScreenshot={pendingScreenshot}
       />
