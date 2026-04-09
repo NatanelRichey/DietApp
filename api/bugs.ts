@@ -5,7 +5,7 @@ const INDEX_PATH = 'bugs/index.json'
 async function getIndex(): Promise<any[]> {
   const { blobs } = await list({ prefix: INDEX_PATH })
   if (!blobs.length) return []
-  const res = await fetch(blobs[0].url + `?t=${Date.now()}`) // bust CDN cache
+  const res = await fetch(blobs[0].downloadUrl) // downloadUrl bypasses CDN — always fresh
   if (!res.ok) return []
   return res.json()
 }
