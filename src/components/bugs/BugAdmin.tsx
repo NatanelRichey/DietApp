@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, CheckCircle, Clock, Archive, Smartphone, Globe, User, ChevronRight, ChevronLeft, AlertCircle, RotateCcw } from 'lucide-react'
 import { format } from 'date-fns'
-import type { BugReport, BugStatus } from '../types'
+import type { BugReport, BugStatus } from '../../types'
 
 interface BugAdminProps {
   onClose: () => void

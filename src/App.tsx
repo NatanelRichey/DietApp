@@ -3,19 +3,17 @@ import { LayoutDashboard, Scale, Utensils, Files, Clock, Calendar, Dumbbell } fr
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toPng } from 'html-to-image'
-import Dashboard from './components/Dashboard'
-import WeightTracker from './components/WeightTracker'
-import MealPlanner from './components/MealPlanner'
+import Dashboard from './components/dashboard'
+import WeightTracker from './components/weight'
+import MealPlanner from './components/planner'
 import DocViewer from './components/DocViewer'
 import Login from './components/Login'
-import BugReporter from './components/BugReporter'
-import BugAdmin from './components/BugAdmin'
+import { BugReporter, BugAdmin } from './components/bugs'
 import SimCartApp from './components/simcart/SimCartApp'
 import DeficitSideBars from './components/DeficitSideBars'
 import WorkoutSchedule from './components/WorkoutSchedule'
 import useDatabase, { DEFAULT_DATA } from './hooks/useDatabase'
-
-const DOUBLE_TAP_MS = 500
+import { useDoubleTap } from './hooks/useDoubleTap'
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -30,9 +28,6 @@ const App = () => {
   // undefined = pre-capture in-flight, null = capture failed, string = ready
   const [pendingScreenshot, setPendingScreenshot] = useState<string | null | undefined>(undefined)
 
-  // Double-tap tracking for header gestures
-  const lastLogoTapRef = useRef(0)
-  const lastClockTapRef = useRef(0)
   const preCaptureRef = useRef<Promise<string | null> | null>(null)
 
   useEffect(() => {
@@ -45,33 +40,23 @@ const App = () => {
     sessionStorage.setItem('diet-app-user', username)
   }
 
-  const handleLogoTap = () => {
-    const now = Date.now()
-    if (now - lastLogoTapRef.current < DOUBLE_TAP_MS) {
-      // Second tap: open modal immediately, deliver screenshot when ready
-      lastLogoTapRef.current = 0
+  const handleLogoTap = useDoubleTap({
+    onFirstTap: () => {
+      preCaptureRef.current = toPng(document.body, { quality: 0.6, pixelRatio: 0.75, skipFonts: true }).catch(() => null)
+    },
+    onDoubleTap: () => {
       setPendingScreenshot(undefined) // undefined = still capturing (shows spinner in BugReporter)
       setIsBugReporterOpen(true)
       preCaptureRef.current
         ?.then(dataUrl => setPendingScreenshot(dataUrl ?? null)) // null = failed
         .catch(() => setPendingScreenshot(null))
       preCaptureRef.current = null
-    } else {
-      // First tap: kick off capture now so it's ready (or nearly ready) by second tap
-      lastLogoTapRef.current = now
-      preCaptureRef.current = toPng(document.body, { quality: 0.6, pixelRatio: 0.75, skipFonts: true }).catch(() => null)
-    }
-  }
+    },
+  })
 
-  const handleClockTap = () => {
-    const now = Date.now()
-    if (now - lastClockTapRef.current < DOUBLE_TAP_MS) {
-      setPage('bugadmin')
-      lastClockTapRef.current = 0
-    } else {
-      lastClockTapRef.current = now
-    }
-  }
+  const handleClockTap = useDoubleTap({
+    onDoubleTap: () => setPage('bugadmin'),
+  })
 
   if (!user) return <Login onLogin={handleLogin} />
 
