@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { format, getYear, getMonth, startOfWeek } from 'date-fns'
 import type { WeightEntry, UserData, ChartSegment, ChartMilestone } from '../../types'
-import { useWeightTrend, movingAvg, linReg } from '../../hooks/useWeightTrend'
+import { useWeightTrend, linReg } from '../../hooks/useWeightTrend'
 import WeightRuler from './WeightRuler'
 import WeightChart from './WeightChart'
 import WeightLog from './WeightLog'
@@ -80,7 +80,8 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
     const histPoints: ChartPoint[] = sorted.map((e, i) => ({
       label:  format(new Date(e.date), 'MMM d'),
       weight: e.weight,
-      smooth: movingAvg(weights, i),
+      // Regression value at this index — gives a non-flat trend line
+      smooth: Math.round((intercept + slope * i) * 10) / 10,
       pred:   null,
     }))
 

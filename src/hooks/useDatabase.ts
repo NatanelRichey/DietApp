@@ -39,9 +39,25 @@ const loadLocal = (user: string): UserData | null => {
   } catch { return null }
 }
 
+// Union-merge two weight history arrays by date string (YYYY-MM-DD prefix).
+// Keeps the entry with the most recent timestamp when there's a same-day conflict.
+const mergeWeightHistories = (local: UserData['weightHistory'], cloud: UserData['weightHistory']) => {
+  const map = new Map<string, { date: string; weight: number }>()
+  for (const e of (cloud ?? [])) {
+    const day = e.date.slice(0, 10)
+    map.set(day, e)
+  }
+  for (const e of (local ?? [])) {
+    const day = e.date.slice(0, 10)
+    // Local wins on same-day conflict (user may have corrected their own entry)
+    map.set(day, e)
+  }
+  return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date))
+}
+
 // Deep merge: cloud is authoritative for which keys EXIST (deletions).
 // Local wins on value conflicts within shared keys (offline edits).
-// This prevents deleted plans from reappearing via stale localStorage.
+// Weight history is union-merged so entries from either side are preserved.
 const mergeUserData = (local: UserData, cloud: UserData): UserData => ({
   ...cloud,
   ...local,
@@ -55,7 +71,8 @@ const mergeUserData = (local: UserData, cloud: UserData): UserData => ({
   ),
   weekSchedule:  { ...cloud.weekSchedule,  ...local.weekSchedule },
   dailyLogs:     { ...cloud.dailyLogs,     ...local.dailyLogs },
-  weightHistory: local.weightHistory?.length ? local.weightHistory : (cloud.weightHistory ?? []),
+  // Union merge: preserves entries from both sides so neither can lose the other's data
+  weightHistory: mergeWeightHistories(local.weightHistory, cloud.weightHistory),
   documents:     local.documents?.length     ? local.documents     : (cloud.documents     ?? []),
   simCart: {
     ...(cloud.simCart ?? {}),

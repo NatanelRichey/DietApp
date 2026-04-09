@@ -12,9 +12,13 @@ const SEGMENT_PALETTE = [
   '#64FFDA', '#4DFFD4', '#38D9FF', '#1AC8FF', '#00AAFF',
   '#0088FF', '#0066FF', '#3A5EFF',
 ]
-
-// Auto-assign color based on index
 const segmentColor = (index: number) => SEGMENT_PALETTE[index % SEGMENT_PALETTE.length]
+
+// Pink → orange palette for milestones
+const MILESTONE_PALETTE = [
+  '#FB7185', '#F97316', '#FBBF24', '#FB7185', '#F97316',
+]
+const milestoneColor = (index: number) => MILESTONE_PALETTE[index % MILESTONE_PALETTE.length]
 
 type ChartView = 'day' | 'week' | 'month'
 
@@ -319,13 +323,26 @@ const WeightChart = ({
               <Line dataKey="smooth" stroke="var(--primary)" strokeWidth={2.5} dot={false} connectNulls={false} isAnimationActive={false} />
               <Line
                 dataKey="weight" stroke="transparent" strokeWidth={0}
-                dot={(props: { cx?: number; cy?: number; payload?: ChartPoint }) => {
+                dot={(props: { cx?: number; cy?: number; payload?: ChartPoint; yAxis?: { scale?: (v: number) => number } }) => {
                   const { cx, cy, payload } = props
                   if (payload?.weight == null || cx == null || cy == null) return <g key={`dot-empty-${cx}-${cy}`} />
                   const isOutlier = payload.smooth != null && Math.abs(payload.weight - payload.smooth) > 1.5
-                  return <circle key={`dot-${cx}-${cy}`} cx={cx} cy={cy} r={isOutlier ? 5 : 4}
-                    fill={isOutlier ? '#F97316' : 'var(--primary)'}
-                    stroke="var(--bg-card)" strokeWidth={2} />
+                  // Draw vertical line from dot to trend line when there's a gap
+                  const smoothCy = payload.smooth != null && props.yAxis?.scale
+                    ? props.yAxis.scale(payload.smooth)
+                    : null
+                  return (
+                    <g key={`dot-${cx}-${cy}`}>
+                      {smoothCy != null && Math.abs(cy - smoothCy) > 2 && (
+                        <line x1={cx} y1={cy} x2={cx} y2={smoothCy}
+                          stroke={isOutlier ? '#F97316' : 'var(--primary)'}
+                          strokeWidth={1} strokeOpacity={0.4} strokeDasharray="2 2" />
+                      )}
+                      <circle cx={cx} cy={cy} r={isOutlier ? 5 : 4}
+                        fill={isOutlier ? '#F97316' : 'var(--primary)'}
+                        stroke="var(--bg-card)" strokeWidth={2} />
+                    </g>
+                  )
                 }}
                 connectNulls={false} isAnimationActive={false}
               />
@@ -337,10 +354,11 @@ const WeightChart = ({
                 />
               )}
 
-              {/* Milestones (day view) */}
-              {chartView === 'day' && chartMilestones.map(ms => (
-                <ReferenceLine key={ms.id} x={format(new Date(ms.date), 'MMM d')} stroke="#F59E0B" strokeDasharray="3 3"
-                  label={{ value: ms.label, fill: '#F59E0B', fontSize: 8, position: 'insideTopLeft' }}
+              {/* Milestones (day view) — pink→orange palette */}
+              {chartView === 'day' && chartMilestones.map((ms, idx) => (
+                <ReferenceLine key={ms.id} x={format(new Date(ms.date), 'MMM d')}
+                  stroke={milestoneColor(idx)} strokeWidth={1.5} strokeDasharray="4 3"
+                  label={{ value: ms.label, fill: milestoneColor(idx), fontSize: 8, position: 'insideTopLeft' }}
                 />
               ))}
             </ComposedChart>
@@ -402,15 +420,16 @@ const WeightChart = ({
               No milestones yet — add one to track a goal or event.
             </div>
           )}
-          {chartMilestones.map(ms => {
+          {chartMilestones.map((ms, idx) => {
             const analysis = getMilestoneAnalysis(ms)
+            const mColor = milestoneColor(idx)
             return (
               <div key={ms.id} style={{ padding: '0.35rem 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Flag size={11} color="#F59E0B" />
+                  <Flag size={11} color={mColor} />
                   <span style={{ flex: 1, fontSize: '0.78rem' }}>{ms.label}</span>
                   {ms.targetWeight != null && (
-                    <span style={{ fontSize: '0.68rem', color: '#F59E0B', fontWeight: 600 }}>{ms.targetWeight} kg</span>
+                    <span style={{ fontSize: '0.68rem', color: mColor, fontWeight: 600 }}>{ms.targetWeight} kg</span>
                   )}
                   <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{format(new Date(ms.date), 'MMM d')}</span>
                   <button onClick={() => onDeleteMilestone(ms.id)} style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', cursor: 'pointer', padding: '0.1rem', opacity: 0.6 }}><Trash2 size={12} /></button>
