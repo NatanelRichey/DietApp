@@ -82,12 +82,31 @@ const App = () => {
         gap: '0.8rem',
         flexShrink: 0
       }}>
-        {/* Left: DietApp + date */}
-        <div>
-          <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }} className="text-gradient">DietApp</h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-            <Calendar size={11} />
-            {format(currentTime, 'EEE, d MMM')}
+        {/* Left: logo mark + DietApp + date */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+          {/* Gauge + sparkline logo mark */}
+          <svg viewBox="0 0 48 48" width="36" height="36" style={{ flexShrink: 0 }}>
+            <defs>
+              <linearGradient id="hg" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#64FFDA"/>
+                <stop offset="100%" stopColor="#00BFFF"/>
+              </linearGradient>
+            </defs>
+            <path d="M 15 39.6 A 18 18 0 1 0 33 39.6"
+                  fill="none" stroke="url(#hg)" strokeWidth="3" strokeLinecap="round"/>
+            <polyline points="13,17 24,23 35,29"
+                      fill="none" stroke="url(#hg)" strokeWidth="2"
+                      strokeLinecap="round" strokeLinejoin="round" opacity="0.85"/>
+            <circle cx="13" cy="17" r="2"   fill="#64FFDA" opacity="0.4"/>
+            <circle cx="24" cy="23" r="2"   fill="#64FFDA" opacity="0.65"/>
+            <circle cx="35" cy="29" r="3.5" fill="url(#hg)"/>
+          </svg>
+          <div>
+            <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }} className="text-gradient">DietApp</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+              <Calendar size={11} />
+              {format(currentTime, 'EEE, d MMM')}
+            </div>
           </div>
         </div>
 

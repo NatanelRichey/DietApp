@@ -77,6 +77,9 @@ interface GestureState {
   startDist?: number
   startWindow: [number, number]
   startYRange?: [number, number]
+  // Pinch anchor: fractional data index under the midpoint at gesture start.
+  // Zoom expands/contracts around this point so the user zooms into where they pinch.
+  anchorFrac?: number
 }
 
 const getDist = (t0: React.Touch, t1: React.Touch) =>
@@ -159,13 +162,21 @@ const WeightChart = ({
         }
       } else if (e.touches.length === 2) {
         const [y0, y1] = getDataYRange(activeDataRef.current, cur[0], cur[1])
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2
+        // Compute which fraction of the visible window is under the pinch midpoint
+        const containerRect = containerRef.current?.getBoundingClientRect()
+        const containerLeft = containerRect?.left ?? 0
+        const containerWidth = containerRect?.width ?? 300
+        const relFrac = Math.max(0, Math.min(1, (midX - containerLeft) / containerWidth))
         gesture.current = {
           type: 'pinch',
-          startX: (e.touches[0].clientX + e.touches[1].clientX) / 2,
-          startY: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+          startX: midX,
+          startY: midY,
           startDist: getDist(e.touches[0], e.touches[1]),
           startWindow: [...cur] as [number, number],
           startYRange: [y0, y1],
+          anchorFrac: relFrac, // 0=left edge, 1=right edge
         }
       }
     }
@@ -202,10 +213,14 @@ const WeightChart = ({
         // X-axis scale (weighted by horizontal component)
         if (xWeight > 0.1) {
           const xRatio = 1 + (ratio - 1) * xWeight
-          const cx = (g.startWindow[0] + g.startWindow[1]) / 2
-          const halfSpan = Math.max(1, Math.round(((g.startWindow[1] - g.startWindow[0]) / 2) * xRatio))
-          const s = Math.max(0, Math.min(total - 1 - halfSpan * 2, Math.round(cx - halfSpan)))
-          setXWin([s, Math.min(total - 1, s + halfSpan * 2)])
+          const startSpan = g.startWindow[1] - g.startWindow[0]
+          const newSpan = Math.max(2, Math.round(startSpan * xRatio))
+          // Anchor: keep the data point under the original pinch midpoint fixed on screen.
+          // anchorFrac=0 → zoom around left edge, anchorFrac=1 → around right edge.
+          const frac = g.anchorFrac ?? 0.5
+          const anchorDataIdx = g.startWindow[0] + frac * startSpan
+          const s = Math.max(0, Math.min(total - 1 - newSpan, Math.round(anchorDataIdx - frac * newSpan)))
+          setXWin([s, Math.min(total - 1, s + newSpan)])
         }
 
         // Y-axis scale (weighted by vertical component)
