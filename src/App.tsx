@@ -42,7 +42,7 @@ const App = () => {
 
   const handleLogoTap = useDoubleTap({
     onFirstTap: () => {
-      preCaptureRef.current = toPng(document.body, { quality: 0.6, pixelRatio: 0.75, skipFonts: true }).catch(() => null)
+      preCaptureRef.current = toPng(document.body, { quality: 0.5, pixelRatio: 0.6, skipFonts: true }).catch(() => null)
     },
     onDoubleTap: () => {
       setPendingScreenshot(undefined) // undefined = still capturing (shows spinner in BugReporter)
@@ -104,7 +104,7 @@ const App = () => {
         {/* Left: DietApp + date — double-tap opens bug reporter */}
         <div
           onClick={handleLogoTap}
-          style={{ cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent' }}
+          style={{ cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
         >
           <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }} className="text-gradient">DietApp</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
@@ -127,7 +127,7 @@ const App = () => {
         {/* Clock — double-tap opens bug admin page */}
         <div
           onClick={handleClockTap}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '1rem', cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent', color: 'var(--text-main)' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 600, fontSize: '1rem', cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent', color: 'var(--text-main)', touchAction: 'manipulation' }}
         >
           <Clock size={14} color="var(--secondary)" />
           {format(currentTime, 'HH:mm')}

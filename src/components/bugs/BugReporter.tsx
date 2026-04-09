@@ -139,13 +139,17 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initia
     }
     const timestamp = new Date().toISOString()
 
+    // Cap screenshot at 800 KB base64 to stay well within Vercel's 4.5 MB body limit
+    const MAX_SCREENSHOT_B64 = 800_000
+    const screenshotPayload = screenshot && screenshot.length > MAX_SCREENSHOT_B64 ? '' : (screenshot ?? '')
+
     try {
-      await submitBug({ report, deviceInfo, screenshot: screenshot ?? '', user, timestamp })
+      await submitBug({ report, deviceInfo, screenshot: screenshotPayload, user, timestamp })
       await flushDrafts() // upload any queued drafts on success
       onClose()
     } catch {
       // Save as draft and show feedback
-      saveDraft({ report, deviceInfo, screenshot: screenshot ?? '', user, timestamp })
+      saveDraft({ report, deviceInfo, screenshot: screenshotPayload, user, timestamp })
       setError('No connection — saved as draft. It will upload next time.')
     } finally {
       setLoading(false)
