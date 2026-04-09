@@ -109,25 +109,30 @@ const WeightChart = ({
   const n = activeChartData.length
 
   // Gesture-controlled window [start, end] into activeChartData
-  const [window, setWindow] = useState<[number, number]>([0, Math.max(0, n - 1)])
+  const [xWin, setXWin] = useState<[number, number]>([0, Math.max(0, n - 1)])
   const [yDomain, setYDomain] = useState<[number | string, number | string]>(['dataMin - 0.5', 'dataMax + 0.5'])
   const gesture = useRef<GestureState | null>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const lastPxPerPoint = useRef(1)
   // Keep latest values accessible inside native event listeners without re-binding
-  const windowRef = useRef(window)
-  windowRef.current = window
+  const windowRef = useRef(xWin)
+  windowRef.current = xWin
   const nRef = useRef(n)
   nRef.current = n
   const activeDataRef = useRef(activeChartData)
   activeDataRef.current = activeChartData
 
-  // Reset window when data changes (e.g., view switch)
+  // Reset window when view type changes (not on n change to avoid 2-finger tap reset)
   useEffect(() => {
-    setWindow([0, Math.max(0, n - 1)])
+    setXWin([0, Math.max(0, n - 1)])
     setYDomain(['dataMin - 0.5', 'dataMax + 0.5'])
-  }, [n, chartView])
+  }, [chartView]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const resetView = () => {
+    setXWin([0, Math.max(0, n - 1)])
+    setYDomain(['dataMin - 0.5', 'dataMax + 0.5'])
+  }
 
   const clampWindow = useCallback((start: number, end: number, total: number): [number, number] => {
     const size = Math.max(2, end - start)
@@ -174,7 +179,7 @@ const WeightChart = ({
       if (g.type === 'pan' && e.touches.length === 1) {
         const dx = e.touches[0].clientX - g.startX
         const shift = Math.round(-dx / Math.max(lastPxPerPoint.current, 1))
-        setWindow(() => {
+        setXWin(() => {
           const size = g.startWindow[1] - g.startWindow[0]
           const s = Math.max(0, Math.min(total - 1 - size, g.startWindow[0] + shift))
           return [s, Math.min(total - 1, s + size)]
@@ -182,21 +187,33 @@ const WeightChart = ({
 
       } else if (g.type === 'pinch' && e.touches.length === 2) {
         const dist = getDist(e.touches[0], e.touches[1])
+        const startDist = g.startDist ?? dist
+        if (startDist < 5) return // ignore tap (no significant spread)
+
+        // Angle-weighted: compute how much of pinch is X vs Y
         const dx0 = e.touches[0].clientX - e.touches[1].clientX
         const dy0 = e.touches[0].clientY - e.touches[1].clientY
-        const isVertical = Math.abs(dy0) > Math.abs(dx0)
+        const angle = Math.atan2(Math.abs(dy0), Math.abs(dx0)) // 0=horizontal, π/2=vertical
+        const xWeight = Math.cos(angle)  // 1 at horizontal, 0 at vertical
+        const yWeight = Math.sin(angle)  // 0 at horizontal, 1 at vertical
 
-        if (!isVertical) {
-          const ratio = (g.startDist ?? dist) / Math.max(dist, 1)
+        const ratio = startDist / Math.max(dist, 1)
+
+        // X-axis scale (weighted by horizontal component)
+        if (xWeight > 0.1) {
+          const xRatio = 1 + (ratio - 1) * xWeight
           const cx = (g.startWindow[0] + g.startWindow[1]) / 2
-          const halfSpan = Math.max(1, Math.round(((g.startWindow[1] - g.startWindow[0]) / 2) * ratio))
+          const halfSpan = Math.max(1, Math.round(((g.startWindow[1] - g.startWindow[0]) / 2) * xRatio))
           const s = Math.max(0, Math.min(total - 1 - halfSpan * 2, Math.round(cx - halfSpan)))
-          setWindow([s, Math.min(total - 1, s + halfSpan * 2)])
-        } else {
-          const ratio = (g.startDist ?? dist) / Math.max(dist, 1)
+          setXWin([s, Math.min(total - 1, s + halfSpan * 2)])
+        }
+
+        // Y-axis scale (weighted by vertical component)
+        if (yWeight > 0.1) {
+          const yRatio = 1 + (ratio - 1) * yWeight
           const [y0, y1] = g.startYRange ?? getDataYRange(activeDataRef.current, windowRef.current[0], windowRef.current[1])
           const mid = (y0 + y1) / 2
-          const halfSpan = Math.max(0.3, ((y1 - y0) / 2) * ratio)
+          const halfSpan = Math.max(0.3, ((y1 - y0) / 2) * yRatio)
           setYDomain([+(mid - halfSpan).toFixed(1), +(mid + halfSpan).toFixed(1)])
         }
       }
@@ -219,14 +236,14 @@ const WeightChart = ({
     if (!containerRef.current) return
     const obs = new ResizeObserver(entries => {
       const width = entries[0]?.contentRect.width ?? 300
-      const pts = window[1] - window[0] + 1
+      const pts = xWin[1] - xWin[0] + 1
       lastPxPerPoint.current = pts > 1 ? width / (pts - 1) : width
     })
     obs.observe(containerRef.current)
     return () => obs.disconnect()
-  }, [window])
+  }, [xWin])
 
-  const visibleData = n > 0 ? activeChartData.slice(window[0], window[1] + 1) : activeChartData
+  const visibleData = n > 0 ? activeChartData.slice(xWin[0], xWin[1] + 1) : activeChartData
 
   return (
     <div className="card glass" style={{ padding: '1.2rem' }}>
@@ -261,9 +278,12 @@ const WeightChart = ({
           </span>
         )}
         {n > 0 && chartView === 'day' && (
-          <span style={{ marginLeft: 'auto', fontSize: '0.62rem', color: 'var(--text-muted)', opacity: 0.6 }}>
-            slide · pinch
-          </span>
+          <button
+            onClick={resetView}
+            style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.4rem', padding: '0.15rem 0.5rem', color: 'var(--text-muted)', fontSize: '0.62rem', cursor: 'pointer', lineHeight: 1.4 }}
+          >
+            Reset
+          </button>
         )}
       </div>
 
@@ -365,11 +385,9 @@ const WeightChart = ({
                 connectNulls={false} isAnimationActive={false}
               />
 
-              {/* Today line (day view) */}
+              {/* Today line (day view) — no label */}
               {chartView === 'day' && (
-                <ReferenceLine x={format(new Date(), 'MMM d')} stroke="rgba(255,255,255,0.15)" strokeDasharray="4 4"
-                  label={{ value: 'Today', fill: 'var(--text-muted)', fontSize: 8, position: 'insideTopRight' }}
-                />
+                <ReferenceLine x={format(new Date(), 'MMM d')} stroke="rgba(255,255,255,0.15)" strokeDasharray="4 4" />
               )}
 
               {/* Milestones (day view) — pink→orange palette */}

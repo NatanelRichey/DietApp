@@ -85,8 +85,15 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
       pred:   null,
     }))
 
-    const PRED_DAYS = 30
-    const lastDate  = new Date(sorted[sorted.length - 1].date)
+    // Extend prediction to cover all segment end dates and milestone dates
+    const lastDate = new Date(sorted[sorted.length - 1].date)
+    const latestRequired = Math.max(
+      lastDate.getTime() + 30 * 86400000,
+      ...(data.chartSegments || []).map(s => new Date(s.endDate).getTime()),
+      ...(data.chartMilestones || []).map(m => new Date(m.date).getTime()),
+    )
+    const PRED_DAYS = Math.ceil((latestRequired - lastDate.getTime()) / 86400000) + 7
+
     const predPoints: ChartPoint[] = Array.from({ length: PRED_DAYS }, (_, j) => {
       const predX   = weights.length + j
       const predY   = Math.round((intercept + slope * predX) * 10) / 10
@@ -98,7 +105,7 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
     histPoints[histPoints.length - 1].pred = Math.round((intercept + slope * (weights.length - 1)) * 10) / 10
 
     return [...histPoints, ...predPoints]
-  }, [data.weightHistory])
+  }, [data.weightHistory, data.chartSegments, data.chartMilestones])
 
   // ── Week aggregated chart data ─────────────────────────────────────────────
   const weekChartData = useMemo((): ChartPoint[] => {
