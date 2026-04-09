@@ -112,8 +112,16 @@ const WeightChart = ({
   const [window, setWindow] = useState<[number, number]>([0, Math.max(0, n - 1)])
   const [yDomain, setYDomain] = useState<[number | string, number | string]>(['dataMin - 0.5', 'dataMax + 0.5'])
   const gesture = useRef<GestureState | null>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const lastPxPerPoint = useRef(1)
+  // Keep latest values accessible inside native event listeners without re-binding
+  const windowRef = useRef(window)
+  windowRef.current = window
+  const nRef = useRef(n)
+  nRef.current = n
+  const activeDataRef = useRef(activeChartData)
+  activeDataRef.current = activeChartData
 
   // Reset window when data changes (e.g., view switch)
   useEffect(() => {
@@ -128,67 +136,83 @@ const WeightChart = ({
     return [s, e]
   }, [])
 
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      gesture.current = {
-        type: 'pan',
-        startX: e.touches[0].clientX,
-        startY: e.touches[0].clientY,
-        startWindow: [...window] as [number, number],
-      }
-    } else if (e.touches.length === 2) {
-      const [y0, y1] = getDataYRange(activeChartData, window[0], window[1])
-      gesture.current = {
-        type: 'pinch',
-        startX: (e.touches[0].clientX + e.touches[1].clientX) / 2,
-        startY: (e.touches[0].clientY + e.touches[1].clientY) / 2,
-        startDist: getDist(e.touches[0], e.touches[1]),
-        startWindow: [...window] as [number, number],
-        startYRange: [y0, y1],
+  // Native (non-passive) touch listeners on the overlay so preventDefault() works,
+  // blocking recharts' built-in tooltip/selection on touch entirely.
+  useEffect(() => {
+    const el = overlayRef.current
+    if (!el) return
+
+    const onStart = (e: TouchEvent) => {
+      e.preventDefault()
+      const cur = windowRef.current
+      if (e.touches.length === 1) {
+        gesture.current = {
+          type: 'pan',
+          startX: e.touches[0].clientX,
+          startY: e.touches[0].clientY,
+          startWindow: [...cur] as [number, number],
+        }
+      } else if (e.touches.length === 2) {
+        const [y0, y1] = getDataYRange(activeDataRef.current, cur[0], cur[1])
+        gesture.current = {
+          type: 'pinch',
+          startX: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+          startY: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+          startDist: getDist(e.touches[0], e.touches[1]),
+          startWindow: [...cur] as [number, number],
+          startYRange: [y0, y1],
+        }
       }
     }
-  }, [window, activeChartData])
 
-  const onTouchMove = useCallback((e: React.TouchEvent) => {
-    const g = gesture.current
-    if (!g || !n) return
-
-    if (g.type === 'pan' && e.touches.length === 1) {
+    const onMove = (e: TouchEvent) => {
       e.preventDefault()
-      const dx = e.touches[0].clientX - g.startX
-      const pxPerPoint = lastPxPerPoint.current
-      const shift = Math.round(-dx / pxPerPoint)
-      const [s, en] = clampWindow(g.startWindow[0] + shift, g.startWindow[1] + shift, n)
-      setWindow([s, en])
+      const g = gesture.current
+      const total = nRef.current
+      if (!g || !total) return
 
-    } else if (g.type === 'pinch' && e.touches.length === 2) {
-      e.preventDefault()
-      const dist = getDist(e.touches[0], e.touches[1])
-      const dx0 = e.touches[0].clientX - e.touches[1].clientX
-      const dy0 = e.touches[0].clientY - e.touches[1].clientY
-      const isVertical = Math.abs(dy0) > Math.abs(dx0)
+      if (g.type === 'pan' && e.touches.length === 1) {
+        const dx = e.touches[0].clientX - g.startX
+        const shift = Math.round(-dx / Math.max(lastPxPerPoint.current, 1))
+        setWindow(() => {
+          const size = g.startWindow[1] - g.startWindow[0]
+          const s = Math.max(0, Math.min(total - 1 - size, g.startWindow[0] + shift))
+          return [s, Math.min(total - 1, s + size)]
+        })
 
-      if (!isVertical) {
-        // Horizontal pinch → zoom X
-        const ratio = (g.startDist ?? dist) / Math.max(dist, 1)
-        const cx = (g.startWindow[0] + g.startWindow[1]) / 2
-        const halfSpan = Math.max(1, Math.round(((g.startWindow[1] - g.startWindow[0]) / 2) * ratio))
-        const [s, en] = clampWindow(Math.round(cx - halfSpan), Math.round(cx + halfSpan), n)
-        setWindow([s, en])
-      } else {
-        // Vertical pinch → zoom Y
-        const ratio = (g.startDist ?? dist) / Math.max(dist, 1)
-        const [y0, y1] = g.startYRange ?? getDataYRange(activeChartData, window[0], window[1])
-        const mid = (y0 + y1) / 2
-        const halfSpan = Math.max(0.3, ((y1 - y0) / 2) * ratio)
-        setYDomain([+(mid - halfSpan).toFixed(1), +(mid + halfSpan).toFixed(1)])
+      } else if (g.type === 'pinch' && e.touches.length === 2) {
+        const dist = getDist(e.touches[0], e.touches[1])
+        const dx0 = e.touches[0].clientX - e.touches[1].clientX
+        const dy0 = e.touches[0].clientY - e.touches[1].clientY
+        const isVertical = Math.abs(dy0) > Math.abs(dx0)
+
+        if (!isVertical) {
+          const ratio = (g.startDist ?? dist) / Math.max(dist, 1)
+          const cx = (g.startWindow[0] + g.startWindow[1]) / 2
+          const halfSpan = Math.max(1, Math.round(((g.startWindow[1] - g.startWindow[0]) / 2) * ratio))
+          const s = Math.max(0, Math.min(total - 1 - halfSpan * 2, Math.round(cx - halfSpan)))
+          setWindow([s, Math.min(total - 1, s + halfSpan * 2)])
+        } else {
+          const ratio = (g.startDist ?? dist) / Math.max(dist, 1)
+          const [y0, y1] = g.startYRange ?? getDataYRange(activeDataRef.current, windowRef.current[0], windowRef.current[1])
+          const mid = (y0 + y1) / 2
+          const halfSpan = Math.max(0.3, ((y1 - y0) / 2) * ratio)
+          setYDomain([+(mid - halfSpan).toFixed(1), +(mid + halfSpan).toFixed(1)])
+        }
       }
     }
-  }, [n, clampWindow, activeChartData, window])
 
-  const onTouchEnd = useCallback(() => {
-    gesture.current = null
-  }, [])
+    const onEnd = () => { gesture.current = null }
+
+    el.addEventListener('touchstart', onStart, { passive: false })
+    el.addEventListener('touchmove',  onMove,  { passive: false })
+    el.addEventListener('touchend',   onEnd)
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove',  onMove)
+      el.removeEventListener('touchend',   onEnd)
+    }
+  }, [clampWindow]) // only bind once; uses refs for live values
 
   // Track px-per-point for pan calculation
   useEffect(() => {
@@ -252,13 +276,7 @@ const WeightChart = ({
               : 'Need entries across multiple months to show month view.'}
         </div>
       ) : (
-        <div
-          ref={containerRef}
-          style={{ height: chartView === 'day' ? '260px' : '220px', touchAction: 'none' }}
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
-        >
+        <div ref={containerRef} style={{ position: 'relative', height: chartView === 'day' ? '260px' : '220px' }}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={visibleData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
               <defs>
@@ -363,6 +381,12 @@ const WeightChart = ({
               ))}
             </ComposedChart>
           </ResponsiveContainer>
+          {/* Transparent overlay — captures all touch events before recharts sees them,
+              so preventDefault() actually works and tooltip never fires on touch */}
+          <div
+            ref={overlayRef}
+            style={{ position: 'absolute', inset: 0, touchAction: 'none' }}
+          />
         </div>
       )}
 
