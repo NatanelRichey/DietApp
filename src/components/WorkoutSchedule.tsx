@@ -60,7 +60,7 @@ const WorkoutSchedule = ({ user, data, setData, loading }: WorkoutScheduleProps)
           <Dumbbell size={18} color="var(--primary)" /> Weekly Schedule
         </h3>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
           {DAY_LABELS.map((label, day) => {
             const d = schedule[day] ?? { gym: false, cardio: false, walk: false, notes: '' }
             const isActive = d.gym || d.cardio || d.walk
@@ -68,7 +68,7 @@ const WorkoutSchedule = ({ user, data, setData, loading }: WorkoutScheduleProps)
               <div
                 key={day}
                 style={{
-                  borderRadius: '0.9rem',
+                  borderRadius: '0.7rem',
                   background: isActive ? 'rgba(100,255,218,0.05)' : 'rgba(255,255,255,0.03)',
                   border: isActive ? '1px solid rgba(100,255,218,0.12)' : '1px solid rgba(255,255,255,0.06)',
                   overflow: 'hidden',
@@ -78,14 +78,14 @@ const WorkoutSchedule = ({ user, data, setData, loading }: WorkoutScheduleProps)
                 {/* Top row: day label + activity toggles */}
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: '3rem 1fr 1fr 1fr',
-                  gap: '0.4rem',
-                  padding: '0.6rem 0.75rem 0.35rem',
+                  gridTemplateColumns: '2.6rem 1fr 1fr 1fr',
+                  gap: '0.3rem',
+                  padding: '0.4rem 0.6rem 0.25rem',
                   alignItems: 'center',
                 }}>
                   <div style={{
                     fontWeight: 800,
-                    fontSize: '0.85rem',
+                    fontSize: '0.78rem',
                     color: isActive ? 'var(--text-main)' : 'var(--text-muted)',
                   }}>
                     {label}
@@ -100,9 +100,9 @@ const WorkoutSchedule = ({ user, data, setData, loading }: WorkoutScheduleProps)
                         flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '0.15rem',
-                        padding: '0.45rem 0.2rem',
-                        borderRadius: '0.65rem',
+                        gap: '0.1rem',
+                        padding: '0.3rem 0.15rem',
+                        borderRadius: '0.5rem',
                         border: 'none',
                         background: d[key]
                           ? 'rgba(100,255,218,0.18)'
@@ -114,17 +114,17 @@ const WorkoutSchedule = ({ user, data, setData, loading }: WorkoutScheduleProps)
                         WebkitTapHighlightColor: 'transparent',
                       }}
                     >
-                      <Icon size={14} />
-                      <span style={{ fontSize: '0.58rem', fontWeight: 800, letterSpacing: '0.04em' }}>
+                      <Icon size={12} />
+                      <span style={{ fontSize: '0.52rem', fontWeight: 800, letterSpacing: '0.04em' }}>
                         {d[key] ? 'ON' : 'OFF'}
                       </span>
-                      <span style={{ fontSize: '0.56rem', opacity: 0.7 }}>{actLabel}</span>
+                      <span style={{ fontSize: '0.5rem', opacity: 0.7 }}>{actLabel}</span>
                     </button>
                   ))}
                 </div>
 
                 {/* Bottom row: full-width notes */}
-                <div style={{ padding: '0 0.75rem 0.6rem' }}>
+                <div style={{ padding: '0 0.6rem 0.4rem' }}>
                   <input
                     type="text"
                     value={d.notes}
@@ -134,10 +134,10 @@ const WorkoutSchedule = ({ user, data, setData, loading }: WorkoutScheduleProps)
                       width: '100%',
                       background: 'rgba(255,255,255,0.04)',
                       border: '1px solid rgba(255,255,255,0.08)',
-                      borderRadius: '0.55rem',
-                      padding: '0.38rem 0.65rem',
+                      borderRadius: '0.45rem',
+                      padding: '0.28rem 0.55rem',
                       color: 'var(--text-main)',
-                      fontSize: '0.78rem',
+                      fontSize: '0.72rem',
                       fontFamily: 'inherit',
                       boxSizing: 'border-box',
                     }}

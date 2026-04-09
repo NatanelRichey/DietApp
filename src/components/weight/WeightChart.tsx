@@ -3,7 +3,7 @@ import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea,
 } from 'recharts'
-import { Plus, Trash2, Flag } from 'lucide-react'
+import { Plus, Trash2, Flag, LocateFixed, Maximize2, Minimize2 } from 'lucide-react'
 import { format } from 'date-fns'
 import type { ChartSegment, ChartMilestone } from '../../types'
 
@@ -114,6 +114,8 @@ const WeightChart = ({
   // Gesture-controlled window [start, end] into activeChartData
   const [xWin, setXWin] = useState<[number, number]>([0, Math.max(0, n - 1)])
   const [yDomain, setYDomain] = useState<[number | string, number | string]>(['dataMin - 0.5', 'dataMax + 0.5'])
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
   const gesture = useRef<GestureState | null>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -136,6 +138,20 @@ const WeightChart = ({
     setXWin([0, Math.max(0, n - 1)])
     setYDomain(['dataMin - 0.5', 'dataMax + 0.5'])
   }
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      cardRef.current?.requestFullscreen?.()
+    } else {
+      document.exitFullscreen?.()
+    }
+  }
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
 
   const clampWindow = useCallback((start: number, end: number, total: number): [number, number] => {
     const size = Math.max(2, end - start)
@@ -261,7 +277,7 @@ const WeightChart = ({
   const visibleData = n > 0 ? activeChartData.slice(xWin[0], xWin[1] + 1) : activeChartData
 
   return (
-    <div className="card glass" style={{ padding: '1.2rem' }}>
+    <div ref={cardRef} className="card glass" style={{ padding: '1.2rem', background: 'var(--bg-card)', ...(isFullscreen ? { overflowY: 'auto', height: '100%' } : {}) }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.7rem' }}>
         <h3 style={{ margin: 0, fontSize: '1rem' }}>Progress</h3>
@@ -293,12 +309,16 @@ const WeightChart = ({
           </span>
         )}
         {n > 0 && chartView === 'day' && (
-          <button
-            onClick={resetView}
-            style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.4rem', padding: '0.15rem 0.5rem', color: 'var(--text-muted)', fontSize: '0.62rem', cursor: 'pointer', lineHeight: 1.4 }}
-          >
-            Reset
-          </button>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.25rem' }}>
+            <button onClick={resetView} title="Re-centre view"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.4rem', padding: '0.2rem 0.4rem', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              <LocateFixed size={12} />
+            </button>
+            <button onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.4rem', padding: '0.2rem 0.4rem', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+              {isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            </button>
+          </div>
         )}
       </div>
 
@@ -311,7 +331,7 @@ const WeightChart = ({
               : 'Need entries across multiple months to show month view.'}
         </div>
       ) : (
-        <div ref={containerRef} style={{ position: 'relative', height: chartView === 'day' ? '260px' : '220px' }}>
+        <div ref={containerRef} style={{ position: 'relative', height: isFullscreen ? 'calc(100vh - 12rem)' : (chartView === 'day' ? '260px' : '220px') }}>
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={visibleData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
               <defs>

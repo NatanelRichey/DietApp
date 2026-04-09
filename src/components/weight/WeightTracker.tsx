@@ -104,7 +104,30 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
 
     histPoints[histPoints.length - 1].pred = Math.round((intercept + slope * (weights.length - 1)) * 10) / 10
 
-    return [...histPoints, ...predPoints]
+    // Add phantom points for segment/milestone boundary dates that fall BEFORE the first
+    // history entry. Without these, recharts ReferenceArea/ReferenceLine can't position
+    // themselves on the categorical X axis (the label must exist in the data).
+    const firstDate = new Date(sorted[0].date)
+    const existingLabels = new Set([
+      ...histPoints.map(p => p.label),
+      ...predPoints.map(p => p.label),
+    ])
+
+    const boundaryDates: Date[] = [
+      ...(data.chartSegments || []).flatMap(s => [new Date(s.startDate), new Date(s.endDate)]),
+      ...(data.chartMilestones || []).map(m => new Date(m.date)),
+    ]
+      .filter(d => d < firstDate)
+      .filter(d => !existingLabels.has(format(d, 'MMM d')))
+
+    // Deduplicate by label
+    const seen = new Set<string>()
+    const prePoints: ChartPoint[] = boundaryDates
+      .sort((a, b) => a.getTime() - b.getTime())
+      .filter(d => { const l = format(d, 'MMM d'); if (seen.has(l)) return false; seen.add(l); return true })
+      .map(d => ({ label: format(d, 'MMM d'), weight: null, smooth: null, pred: null }))
+
+    return [...prePoints, ...histPoints, ...predPoints]
   }, [data.weightHistory, data.chartSegments, data.chartMilestones])
 
   // ── Week aggregated chart data ─────────────────────────────────────────────
