@@ -14,7 +14,8 @@ async function saveIndex(bugs: any[]) {
   await put(INDEX_PATH, JSON.stringify(bugs), {
     access: 'public',
     contentType: 'application/json',
-    allowOverwrite: true
+    allowOverwrite: true,
+    cacheControlMaxAge: 0
   })
 }
 

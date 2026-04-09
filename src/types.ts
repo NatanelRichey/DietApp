@@ -56,6 +56,20 @@ export interface SavedMealTemplate {
   items?: MealItem[];
 }
 
+export interface ChartSegment {
+  id: string;
+  label: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  color: string;
+}
+
+export interface ChartMilestone {
+  id: string;
+  label: string;
+  date: string; // YYYY-MM-DD
+}
+
 export interface UserData {
   weightHistory: WeightEntry[];
   dayPlans: Record<string, DayPlan>;
@@ -67,6 +81,8 @@ export interface UserData {
   documents: Document[];
   dailyLogs: Record<string, DailyLog>; // key: YYYY-MM-DD
   simCart?: SimCartData;
+  chartSegments?: ChartSegment[];
+  chartMilestones?: ChartMilestone[];
 }
 
 // ─── SimCart Types ────────────────────────────────────────────────────────────

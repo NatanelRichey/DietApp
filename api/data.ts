@@ -14,7 +14,8 @@ async function saveUserData(user: string, data: any) {
   await put(`data/${user}.json`, JSON.stringify(data), {
     access: 'public',
     contentType: 'application/json',
-    allowOverwrite: true
+    allowOverwrite: true,
+    cacheControlMaxAge: 0
   })
 }
 

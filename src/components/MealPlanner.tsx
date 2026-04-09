@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
-import { format } from 'date-fns'
 import { Plus, Trash2, Calendar, Utensils, Info, Edit2, Save, GripVertical, X, Bookmark, ChevronDown, ChevronUp } from 'lucide-react'
 import type { DayPlan, Meal, MealItem, SavedMealTemplate, UserData } from '../types'
 
@@ -884,33 +883,6 @@ const MealPlanner = ({ data, setData, loading }: MealPlannerProps) => {
         )}
       </div>
 
-      {/* Set as Active */}
-      {data.activePlanId !== editingPlanId && (
-        <button
-          onClick={() => {
-            const todayKey = format(new Date(), 'yyyy-MM-dd')
-            const todayLog = data.dailyLogs?.[todayKey]
-            const plan = data.dayPlans[editingPlanId]
-            const newData: UserData = { ...data, activePlanId: editingPlanId }
-            // Update today's log only if no meals have been completed yet
-            if (!todayLog || !todayLog.meals.some(m => m.completed)) {
-              newData.dailyLogs = {
-                ...(data.dailyLogs || {}),
-                [todayKey]: {
-                  date: todayKey,
-                  planId: editingPlanId,
-                  meals: plan.meals.map(m => ({ ...m, completed: false }))
-                }
-              }
-            }
-            setData(newData)
-          }}
-          className="btn-primary"
-          style={{ position: 'sticky', bottom: '1rem', width: '100%', justifyContent: 'center', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
-        >
-          <Calendar size={20} /> Set as Today's Plan
-        </button>
-      )}
       </>}
     </div>
   )

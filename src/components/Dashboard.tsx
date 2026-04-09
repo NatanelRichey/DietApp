@@ -73,6 +73,7 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
   const [expandedMealId, setExpandedMealId] = useState<string | null>(null)
   const [editingTdee, setEditingTdee] = useState(false)
   const [tdeeInput, setTdeeInput] = useState('')
+  const [showPlanPicker, setShowPlanPicker] = useState(false)
 
   // 1-second timer for animated deficit counter and side bar sync
   useEffect(() => {
@@ -234,6 +235,25 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
   const consumedProtein  = currentMeals.filter(m => m.completed).reduce((s, m) => s + (m.protein ?? 0), 0)
   const progress         = totalCalories > 0 ? (consumedCalories / totalCalories) * 100 : 0
   const allDone          = currentMeals.length > 0 && currentMeals.every(m => m.completed)
+
+  const assignPlanToDate = (planId: string) => {
+    const plan = data.dayPlans[planId]
+    if (!plan) return
+    const existingLog = data.dailyLogs?.[dateKey]
+    const hasCompleted = existingLog?.meals.some(m => m.completed)
+    setData({
+      ...data,
+      dailyLogs: {
+        ...(data.dailyLogs || {}),
+        [dateKey]: {
+          date: dateKey,
+          planId,
+          meals: hasCompleted ? existingLog!.meals : plan.meals.map(m => ({ ...m, completed: false })),
+        },
+      },
+    })
+    setShowPlanPicker(false)
+  }
 
   // Bug 3 — allow toggling any day (not just today)
   const toggleMeal = (mealId: string) => {
@@ -646,6 +666,42 @@ const Dashboard = ({ user, data, setData, loading }: DashboardProps) => {
           </div>
         )}
       </div>
+
+      {/* ── Plan picker ── */}
+      {Object.keys(data.dayPlans).length > 0 && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', flex: 1 }}>
+              Plan: <span style={{ fontWeight: 600, color: 'var(--text-main)' }}>{currentLog.planId}</span>
+            </span>
+            <button
+              onClick={() => setShowPlanPicker(v => !v)}
+              style={{ background: 'none', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '0.5rem', padding: '0.18rem 0.55rem', color: 'var(--text-muted)', fontSize: '0.72rem', cursor: 'pointer' }}
+            >
+              Change
+            </button>
+          </div>
+          {showPlanPicker && (
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+              {Object.keys(data.dayPlans).map(planId => (
+                <button
+                  key={planId}
+                  onClick={() => assignPlanToDate(planId)}
+                  style={{
+                    padding: '0.32rem 0.8rem', borderRadius: '2rem',
+                    background: currentLog.planId === planId ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
+                    color: currentLog.planId === planId ? 'var(--bg-deep)' : 'var(--text-muted)',
+                    border: currentLog.planId === planId ? 'none' : 'var(--border-glass)',
+                    fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  {planId}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Plan guidelines banner ── */}
       {(() => {

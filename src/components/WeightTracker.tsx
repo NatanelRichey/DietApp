@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine,
+  Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Brush,
 } from 'recharts'
-import { Plus, Trash2 } from 'lucide-react'
-import { format, getYear, getMonth } from 'date-fns'
-import type { WeightEntry, UserData } from '../types'
+import { Plus, Trash2, Flag } from 'lucide-react'
+import { format, getYear, getMonth, startOfWeek } from 'date-fns'
+import type { WeightEntry, UserData, ChartSegment, ChartMilestone } from '../types'
 
 // ─── Ruler constants ──────────────────────────────────────────────────────────
 const MIN_KG = 30
@@ -15,6 +15,11 @@ const DEFAULT_KG = 70
 
 function kgToScroll(kg: number) { return Math.round((kg - MIN_KG) * 10) * TICK_PX }
 function scrollToKg(px: number) { return Math.round((MIN_KG + px / TICK_PX / 10) * 10) / 10 }
+
+// ─── Segment colour palette ───────────────────────────────────────────────────
+const PALETTE = ['#64FFDA', '#7C3AED', '#FB7185', '#F59E0B', '#3B82F6', '#10B981', '#F97316', '#EF4444']
+
+type ChartView = 'day' | 'week' | 'month'
 
 // ─── Weekday colours for log circles ─────────────────────────────────────────
 const DOW_COLORS = ['#F59E0B', '#3B82F6', '#06B6D4', '#10B981', '#8B5CF6', '#F43F5E', '#F97316']
@@ -67,6 +72,15 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
   const [manualDate, setManualDate]           = useState(format(new Date(), 'yyyy-MM-dd'))
   const [manualTime, setManualTime]           = useState('10:00')
   const [manualWeight, setManualWeight]       = useState('')
+  const [chartView, setChartView]             = useState<ChartView>('day')
+  const [showAddSegment, setShowAddSegment]   = useState(false)
+  const [segLabel, setSegLabel]               = useState('')
+  const [segStart, setSegStart]               = useState('')
+  const [segEnd, setSegEnd]                   = useState('')
+  const [segColor, setSegColor]               = useState(PALETTE[0])
+  const [showAddMilestone, setShowAddMilestone] = useState(false)
+  const [msLabel, setMsLabel]                 = useState('')
+  const [msDate, setMsDate]                   = useState('')
   const rulerRef         = useRef<HTMLDivElement>(null)
   const initialisedRef   = useRef(false)
   const snapTimeoutRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -150,6 +164,79 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
 
     return [...histPoints, ...predPoints]
   }, [data.weightHistory])
+
+  // ── Week aggregated chart data ─────────────────────────────────────────────
+  const weekChartData = useMemo((): ChartPoint[] => {
+    const history = data.weightHistory || []
+    if (!history.length) return []
+    const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    const weekMap = new Map<string, { weights: number[]; date: Date }>()
+    for (const e of sorted) {
+      const ws  = startOfWeek(new Date(e.date), { weekStartsOn: 0 })
+      const key = format(ws, 'MMM d')
+      if (!weekMap.has(key)) weekMap.set(key, { weights: [], date: ws })
+      weekMap.get(key)!.weights.push(e.weight)
+    }
+    const weeks = Array.from(weekMap.values()).map(({ weights, date }) => ({
+      label: format(date, 'MMM d'),
+      avg:   Math.round((weights.reduce((s, w) => s + w, 0) / weights.length) * 10) / 10,
+    }))
+    const avgs = weeks.map(w => w.avg)
+    const { slope, intercept } = linReg(avgs)
+    return weeks.map((w, i) => ({
+      label: w.label,
+      weight: w.avg,
+      smooth: Math.round((intercept + slope * i) * 10) / 10,
+      pred: null,
+    }))
+  }, [data.weightHistory])
+
+  // ── Month aggregated chart data ────────────────────────────────────────────
+  const monthChartData = useMemo((): ChartPoint[] => {
+    const history = data.weightHistory || []
+    if (!history.length) return []
+    const sorted = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    const monthMap = new Map<string, number[]>()
+    const monthOrder: string[] = []
+    for (const e of sorted) {
+      const key = format(new Date(e.date), "MMM ''yy")
+      if (!monthMap.has(key)) { monthMap.set(key, []); monthOrder.push(key) }
+      monthMap.get(key)!.push(e.weight)
+    }
+    const months = monthOrder.map(key => {
+      const weights = monthMap.get(key)!
+      return { label: key, avg: Math.round((weights.reduce((s, w) => s + w, 0) / weights.length) * 10) / 10 }
+    })
+    const avgs = months.map(m => m.avg)
+    const { slope, intercept } = linReg(avgs)
+    return months.map((m, i) => ({
+      label: m.label,
+      weight: m.avg,
+      smooth: Math.round((intercept + slope * i) * 10) / 10,
+      pred: null,
+    }))
+  }, [data.weightHistory])
+
+  const activeChartData = chartView === 'day' ? chartData : chartView === 'week' ? weekChartData : monthChartData
+
+  // ── Segment / milestone management ─────────────────────────────────────────
+  const addSegment = () => {
+    if (!segLabel || !segStart || !segEnd) return
+    const seg: ChartSegment = { id: Date.now().toString(), label: segLabel, startDate: segStart, endDate: segEnd, color: segColor }
+    setData({ ...data, chartSegments: [...(data.chartSegments || []), seg] })
+    setSegLabel(''); setSegStart(''); setSegEnd(''); setSegColor(PALETTE[0]); setShowAddSegment(false)
+  }
+  const deleteSegment = (id: string) =>
+    setData({ ...data, chartSegments: (data.chartSegments || []).filter(s => s.id !== id) })
+
+  const addMilestone = () => {
+    if (!msLabel || !msDate) return
+    const ms: ChartMilestone = { id: Date.now().toString(), label: msLabel, date: msDate }
+    setData({ ...data, chartMilestones: [...(data.chartMilestones || []), ms] })
+    setMsLabel(''); setMsDate(''); setShowAddMilestone(false)
+  }
+  const deleteMilestone = (id: string) =>
+    setData({ ...data, chartMilestones: (data.chartMilestones || []).filter(m => m.id !== id) })
 
   // ── Log view data ──────────────────────────────────────────────────────────
   const allYears = useMemo(() => {
@@ -286,29 +373,46 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
       {/* ── CHART TAB ─────────────────────────────────────────────────────── */}
       {mainTab === 'chart' && (
         <div className="card glass" style={{ padding: '1.2rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+          {/* Header: title + Day/Week/Month toggle */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.7rem' }}>
             <h3 style={{ margin: 0, fontSize: '1rem' }}>Progress</h3>
-            <div style={{ display: 'flex', gap: '1rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--primary)', border: '2px solid var(--bg-card)' }} /> actual
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                <span style={{ display: 'inline-block', width: 16, height: 2, background: 'var(--primary)' }} /> trend
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                <span style={{ display: 'inline-block', width: 16, height: 2, background: 'var(--primary)', opacity: 0.4, borderTop: '2px dashed var(--primary)' }} /> forecast
-              </span>
+            <div style={{ display: 'flex', gap: '0.15rem', background: 'rgba(255,255,255,0.05)', padding: '0.15rem', borderRadius: '0.6rem' }}>
+              {(['day', 'week', 'month'] as ChartView[]).map(v => (
+                <button key={v} onClick={() => setChartView(v)} style={{
+                  padding: '0.18rem 0.55rem', borderRadius: '0.45rem', border: 'none', cursor: 'pointer',
+                  background: chartView === v ? 'var(--primary)' : 'transparent',
+                  color: chartView === v ? 'var(--bg-deep)' : 'var(--text-muted)',
+                  fontSize: '0.68rem', fontWeight: 700, textTransform: 'capitalize',
+                }}>
+                  {v}
+                </button>
+              ))}
             </div>
           </div>
 
-          {chartData.length < 2 ? (
+          {/* Legend */}
+          <div style={{ display: 'flex', gap: '1rem', fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.6rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: 'var(--primary)', border: '2px solid var(--bg-card)' }} /> Actual
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span style={{ display: 'inline-block', width: 16, height: 2, background: 'var(--primary)' }} /> Trend
+            </span>
+            {chartView === 'day' && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <span style={{ display: 'inline-block', width: 16, height: 0, borderTop: '2px dashed var(--primary)', opacity: 0.5 }} /> Forecast
+              </span>
+            )}
+          </div>
+
+          {activeChartData.length < 2 ? (
             <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem', fontSize: '0.85rem' }}>
               Log at least 2 entries to see the chart.
             </div>
           ) : (
-            <div style={{ height: '220px' }}>
+            <div style={{ height: chartView === 'day' ? '260px' : '220px' }}>
               <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
+                <ComposedChart data={activeChartData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="predGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%"  stopColor="var(--primary)" stopOpacity={0.12} />
@@ -320,75 +424,162 @@ const WeightTracker = ({ data, setData, loading }: WeightTrackerProps) => {
                     </linearGradient>
                   </defs>
 
+                  {/* Plan segments (day view only) */}
+                  {chartView === 'day' && (data.chartSegments || []).map(seg => (
+                    <ReferenceArea
+                      key={seg.id}
+                      x1={format(new Date(seg.startDate), 'MMM d')}
+                      x2={format(new Date(seg.endDate), 'MMM d')}
+                      fill={seg.color} fillOpacity={0.1}
+                      stroke={seg.color} strokeOpacity={0.3} strokeWidth={1}
+                      label={{ value: seg.label, fill: seg.color, fontSize: 8, position: 'insideTopLeft' }}
+                    />
+                  ))}
+
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                  <XAxis
-                    dataKey="label"
-                    stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false}
-                    interval="preserveStartEnd"
-                  />
-                  <YAxis
-                    stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false}
-                    domain={['dataMin - 1', 'dataMax + 1']}
-                    tickFormatter={(v: number) => `${v}`}
-                  />
+                  <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+                  <YAxis stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} domain={['dataMin - 1', 'dataMax + 1']} tickFormatter={(v: number) => `${v}`} />
+
                   <Tooltip
-                    contentStyle={{ background: 'var(--bg-card)', border: 'var(--border-glass)', borderRadius: '1rem', fontSize: '0.78rem' }}
-                    itemStyle={{ color: 'var(--primary)' }}
-                    formatter={(val, name) => {
-                      const v = typeof val === 'number' ? val : Number(val)
-                      if (name === 'weight') return [`${v} kg`, 'Actual']
-                      if (name === 'smooth') return [`${v} kg`, 'Trend']
-                      if (name === 'pred')   return [`${v} kg`, 'Forecast']
-                      return [val, name]
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null
+                      const seen = new Set<string>()
+                      const items = payload.filter(p => {
+                        const dk = String(p.dataKey)
+                        if (!['weight', 'smooth', 'pred'].includes(dk)) return false
+                        if (p.value == null) return false
+                        if (seen.has(dk)) return false
+                        seen.add(dk)
+                        return true
+                      })
+                      if (!items.length) return null
+                      return (
+                        <div style={{ background: 'var(--bg-card)', border: 'var(--border-glass)', borderRadius: '1rem', padding: '0.5rem 0.75rem', fontSize: '0.78rem' }}>
+                          <div style={{ color: 'var(--text-muted)', marginBottom: '0.25rem' }}>{label}</div>
+                          {items.map((item, i) => {
+                            const v = typeof item.value === 'number' ? item.value : null
+                            if (v == null) return null
+                            const name = item.dataKey === 'weight' ? 'Actual' : item.dataKey === 'smooth' ? 'Trend' : item.dataKey === 'pred' ? 'Forecast' : String(item.dataKey)
+                            return <div key={i} style={{ color: 'var(--primary)' }}>{name}: {v} kg</div>
+                          })}
+                        </div>
+                      )
                     }}
                   />
 
-                  {/* Prediction fill area */}
-                  <Area dataKey="pred" fill="url(#predGrad)" stroke="none" connectNulls={false} isAnimationActive={false} />
-
-                  {/* Smooth trend fill (subtle) */}
+                  {chartView === 'day' && <Area dataKey="pred" fill="url(#predGrad)" stroke="none" connectNulls={false} isAnimationActive={false} />}
                   <Area dataKey="smooth" fill="url(#smoothGrad)" stroke="none" connectNulls={false} isAnimationActive={false} />
 
-                  {/* Prediction line (dashed) */}
-                  <Line
-                    dataKey="pred" stroke="var(--primary)" strokeWidth={1.5}
-                    strokeDasharray="5 4" strokeOpacity={0.45}
-                    dot={false} connectNulls={false} isAnimationActive={false}
-                  />
-
-                  {/* Smooth trend line */}
-                  <Line
-                    dataKey="smooth" stroke="var(--primary)" strokeWidth={2.5}
-                    dot={false} connectNulls={false} isAnimationActive={false}
-                  />
-
-                  {/* Actual weight dots (no line, just circles) */}
+                  {chartView === 'day' && (
+                    <Line dataKey="pred" stroke="var(--primary)" strokeWidth={1.5} strokeDasharray="5 4" strokeOpacity={0.45} dot={false} connectNulls={false} isAnimationActive={false} />
+                  )}
+                  <Line dataKey="smooth" stroke="var(--primary)" strokeWidth={2.5} dot={false} connectNulls={false} isAnimationActive={false} />
                   <Line
                     dataKey="weight" stroke="transparent" strokeWidth={0}
                     dot={(props: { cx?: number; cy?: number; payload?: ChartPoint }) => {
                       if (props.payload?.weight == null || props.cx == null || props.cy == null) return <g key={`dot-empty-${props.cx}-${props.cy}`} />
-                      return (
-                        <circle
-                          key={`dot-${props.cx}-${props.cy}`}
-                          cx={props.cx} cy={props.cy} r={4}
-                          fill="var(--primary)"
-                          stroke="var(--bg-card)"
-                          strokeWidth={2}
-                        />
-                      )
+                      return <circle key={`dot-${props.cx}-${props.cy}`} cx={props.cx} cy={props.cy} r={4} fill="var(--primary)" stroke="var(--bg-card)" strokeWidth={2} />
                     }}
                     connectNulls={false} isAnimationActive={false}
                   />
 
-                  {/* Today separator */}
-                  <ReferenceLine
-                    x={format(new Date(), 'MMM d')}
-                    stroke="rgba(255,255,255,0.15)"
-                    strokeDasharray="4 4"
-                    label={{ value: 'today', fill: 'var(--text-muted)', fontSize: 8, position: 'insideTopRight' }}
-                  />
+                  {/* Today line (day view) */}
+                  {chartView === 'day' && (
+                    <ReferenceLine x={format(new Date(), 'MMM d')} stroke="rgba(255,255,255,0.15)" strokeDasharray="4 4"
+                      label={{ value: 'Today', fill: 'var(--text-muted)', fontSize: 8, position: 'insideTopRight' }}
+                    />
+                  )}
+
+                  {/* Milestones (day view) */}
+                  {chartView === 'day' && (data.chartMilestones || []).map(ms => (
+                    <ReferenceLine key={ms.id} x={format(new Date(ms.date), 'MMM d')} stroke="#F59E0B" strokeDasharray="3 3"
+                      label={{ value: ms.label, fill: '#F59E0B', fontSize: 8, position: 'insideTopLeft' }}
+                    />
+                  ))}
+
+                  {/* Brush for zoom/scroll (day view, >10 points) */}
+                  {chartView === 'day' && activeChartData.length > 10 && (
+                    <Brush
+                      dataKey="label" height={18}
+                      stroke="rgba(100,255,218,0.3)" fill="rgba(0,0,0,0.2)"
+                      travellerWidth={6}
+                      startIndex={Math.max(0, activeChartData.length - 60)}
+                      endIndex={activeChartData.length - 1}
+                    />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
+            </div>
+          )}
+
+          {/* ── Segments management (day view) ── */}
+          {chartView === 'day' && (
+            <div style={{ marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.8rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Segments</span>
+                <button onClick={() => setShowAddSegment(v => !v)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <Plus size={13} /> Add
+                </button>
+              </div>
+              {(data.chartSegments || []).map(seg => (
+                <div key={seg.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '2px', background: seg.color, flexShrink: 0 }} />
+                  <span style={{ flex: 1, fontSize: '0.78rem' }}>{seg.label}</span>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{format(new Date(seg.startDate), 'MMM d')} – {format(new Date(seg.endDate), 'MMM d')}</span>
+                  <button onClick={() => deleteSegment(seg.id)} style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', cursor: 'pointer', padding: '0.1rem', opacity: 0.6 }}><Trash2 size={12} /></button>
+                </div>
+              ))}
+              {showAddSegment && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.6rem' }}>
+                  <input placeholder="Label (e.g. Aggressive Cut)" value={segLabel} onChange={e => setSegLabel(e.target.value)} className="glass"
+                    style={{ padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input type="date" value={segStart} onChange={e => setSegStart(e.target.value)} className="glass"
+                      style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
+                    <input type="date" value={segEnd} onChange={e => setSegEnd(e.target.value)} className="glass"
+                      style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    {PALETTE.map(c => (
+                      <button key={c} onClick={() => setSegColor(c)} style={{ width: 22, height: 22, borderRadius: '50%', background: c, border: segColor === c ? '2px solid white' : '2px solid transparent', cursor: 'pointer', padding: 0 }} />
+                    ))}
+                  </div>
+                  <button onClick={addSegment} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+                    <Plus size={14} /> Add Segment
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Milestones management (day view) ── */}
+          {chartView === 'day' && (
+            <div style={{ marginTop: '0.8rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.8rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Milestones</span>
+                <button onClick={() => setShowAddMilestone(v => !v)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                  <Plus size={13} /> Add
+                </button>
+              </div>
+              {(data.chartMilestones || []).map(ms => (
+                <div key={ms.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <Flag size={11} color="#F59E0B" />
+                  <span style={{ flex: 1, fontSize: '0.78rem' }}>{ms.label}</span>
+                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{format(new Date(ms.date), 'MMM d')}</span>
+                  <button onClick={() => deleteMilestone(ms.id)} style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', cursor: 'pointer', padding: '0.1rem', opacity: 0.6 }}><Trash2 size={12} /></button>
+                </div>
+              ))}
+              {showAddMilestone && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.6rem' }}>
+                  <input placeholder="Label (e.g. Goal Weight)" value={msLabel} onChange={e => setMsLabel(e.target.value)} className="glass"
+                    style={{ padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
+                  <input type="date" value={msDate} onChange={e => setMsDate(e.target.value)} className="glass"
+                    style={{ padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
+                  <button onClick={addMilestone} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
+                    <Flag size={14} /> Add Milestone
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
