@@ -1,6 +1,5 @@
 import { ChevronDown, ChevronUp, Calendar } from 'lucide-react'
-import { format, isSameDay, addDays } from 'date-fns'
-import type { UserData } from '../../types'
+import { format, isSameDay } from 'date-fns'
 
 interface UpcomingDay {
   date: Date

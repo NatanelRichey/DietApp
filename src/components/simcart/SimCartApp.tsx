@@ -4,8 +4,7 @@ import { format } from 'date-fns'
 import { AnimatePresence, motion } from 'framer-motion'
 import SimDailyLogger from './SimDailyLogger'
 import SimPlanner from './SimPlanner'
-import BugReporter from '../BugReporter'
-import BugAdmin from '../BugAdmin'
+import { BugReporter, BugAdmin } from '../bugs'
 import type { UserData, SimCartData } from '../../types'
 
 interface Props {

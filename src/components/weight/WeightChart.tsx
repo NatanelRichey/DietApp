@@ -75,7 +75,7 @@ interface GestureState {
   startYRange?: [number, number]
 }
 
-const getDist = (t0: Touch, t1: Touch) =>
+const getDist = (t0: React.Touch, t1: React.Touch) =>
   Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY)
 
 const getDataYRange = (data: ChartPoint[], start: number, end: number): [number, number] => {
@@ -152,7 +152,6 @@ const WeightChart = ({
     if (g.type === 'pan' && e.touches.length === 1) {
       e.preventDefault()
       const dx = e.touches[0].clientX - g.startX
-      const windowSize = g.startWindow[1] - g.startWindow[0]
       const pxPerPoint = lastPxPerPoint.current
       const shift = Math.round(-dx / pxPerPoint)
       const [s, en] = clampWindow(g.startWindow[0] + shift, g.startWindow[1] + shift, n)
