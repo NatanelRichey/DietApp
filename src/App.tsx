@@ -58,7 +58,7 @@ const App = () => {
     } else {
       // First tap: kick off capture now so it's ready (or nearly ready) by second tap
       lastLogoTapRef.current = now
-      preCaptureRef.current = toPng(document.body, { quality: 0.8, pixelRatio: 1, skipFonts: true }).catch(() => null)
+      preCaptureRef.current = toPng(document.body, { quality: 0.6, pixelRatio: 0.75, skipFonts: true }).catch(() => null)
     }
   }
 

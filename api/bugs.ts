@@ -29,22 +29,26 @@ export default async function handler(req: any, res: any) {
     if (req.method === 'POST') {
       const { report, deviceInfo, screenshot, user, timestamp } = req.body
 
-      if (!report || !screenshot) {
-        return res.status(400).json({ error: 'Report and screenshot are required' })
+      if (!report) {
+        return res.status(400).json({ error: 'Report is required' })
       }
 
-      // Upload screenshot to Vercel Blob
-      const screenshotBlob = await put(
-        `bugs/screenshots/${Date.now()}.png`,
-        Buffer.from(screenshot.split(',')[1], 'base64'),
-        { access: 'public', contentType: 'image/png' }
-      )
+      // Upload screenshot if provided
+      let imageUrl = ''
+      if (screenshot) {
+        const screenshotBlob = await put(
+          `bugs/screenshots/${Date.now()}.png`,
+          Buffer.from(screenshot.split(',')[1], 'base64'),
+          { access: 'public', contentType: 'image/png' }
+        )
+        imageUrl = screenshotBlob.url
+      }
 
       const newBug = {
         id: crypto.randomUUID(),
         report,
         deviceInfo,
-        imageUrl: screenshotBlob.url,
+        imageUrl,
         user,
         timestamp,
         status: 'pending'

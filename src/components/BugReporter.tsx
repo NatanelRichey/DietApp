@@ -63,7 +63,7 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initia
     setError(null)
     try {
       await new Promise(r => setTimeout(r, 300))
-      const dataUrl = await toPng(document.body, { quality: 0.8, pixelRatio: 1, skipFonts: true })
+      const dataUrl = await toPng(document.body, { quality: 0.6, pixelRatio: 0.75, skipFonts: true })
       setScreenshot(dataUrl)
     } catch {
       setError('Failed to capture screenshot.')
@@ -121,7 +121,7 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initia
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!report.trim() || !screenshot) return
+    if (!report.trim()) return
 
     setLoading(true)
     setError(null)
@@ -135,12 +135,12 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initia
     const timestamp = new Date().toISOString()
 
     try {
-      await submitBug({ report, deviceInfo, screenshot, user, timestamp })
+      await submitBug({ report, deviceInfo, screenshot: screenshot ?? '', user, timestamp })
       await flushDrafts() // upload any queued drafts on success
       onClose()
     } catch {
       // Save as draft and show feedback
-      saveDraft({ report, deviceInfo, screenshot, user, timestamp })
+      saveDraft({ report, deviceInfo, screenshot: screenshot ?? '', user, timestamp })
       setError('No connection — saved as draft. It will upload next time.')
     } finally {
       setLoading(false)
@@ -306,17 +306,17 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initia
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || capturing || !report.trim()}
+                  disabled={loading || !report.trim()}
                   className="btn-primary"
                   style={{
                     flex: 2, padding: '0.8rem', borderRadius: '0.75rem', border: 'none',
                     fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center',
                     justifyContent: 'center', gap: '0.5rem',
-                    opacity: (loading || capturing || !report.trim()) ? 0.6 : 1,
+                    opacity: (loading || !report.trim()) ? 0.6 : 1,
                   }}
                 >
                   {loading ? <Loader2 size={18} /> : <Send size={18} />}
-                  Submit Report
+                  {capturing ? 'Submit (capturing…)' : 'Submit Report'}
                 </button>
               </div>
             </form>
