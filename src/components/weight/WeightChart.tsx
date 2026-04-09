@@ -1,12 +1,20 @@
+import { useState, useRef, useEffect, useCallback } from 'react'
 import {
   ComposedChart, Line, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Brush,
+  Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea,
 } from 'recharts'
 import { Plus, Trash2, Flag } from 'lucide-react'
 import { format } from 'date-fns'
 import type { ChartSegment, ChartMilestone } from '../../types'
 
-const PALETTE = ['#64FFDA', '#7C3AED', '#FB7185', '#F59E0B', '#3B82F6', '#10B981', '#F97316', '#EF4444']
+// Neon green → neon blue palette for segments
+const SEGMENT_PALETTE = [
+  '#64FFDA', '#4DFFD4', '#38D9FF', '#1AC8FF', '#00AAFF',
+  '#0088FF', '#0066FF', '#3A5EFF',
+]
+
+// Auto-assign color based on index
+const segmentColor = (index: number) => SEGMENT_PALETTE[index % SEGMENT_PALETTE.length]
 
 type ChartView = 'day' | 'week' | 'month'
 
@@ -47,6 +55,7 @@ interface WeightChartProps {
   chartView: ChartView
   setChartView: (v: ChartView) => void
   activeChartData: ChartPoint[]
+  totalEntries: number  // raw entry count (for better empty state messages)
   chartSegments: ChartSegment[]
   chartMilestones: ChartMilestone[]
   onDeleteSegment: (id: string) => void
@@ -56,10 +65,35 @@ interface WeightChartProps {
   getMilestoneAnalysis: (ms: ChartMilestone) => { predictedWeight: number; onTrack: boolean; calToGo: number | null } | null
 }
 
+// ── Gesture state ─────────────────────────────────────────────────────────────
+interface GestureState {
+  type: 'pan' | 'pinch'
+  startX: number
+  startY: number
+  startDist?: number
+  startWindow: [number, number]
+  startYRange?: [number, number]
+}
+
+const getDist = (t0: Touch, t1: Touch) =>
+  Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY)
+
+const getDataYRange = (data: ChartPoint[], start: number, end: number): [number, number] => {
+  let lo = Infinity, hi = -Infinity
+  for (let i = start; i <= end; i++) {
+    const p = data[i]
+    if (p.weight != null) { lo = Math.min(lo, p.weight); hi = Math.max(hi, p.weight) }
+    if (p.smooth != null) { lo = Math.min(lo, p.smooth); hi = Math.max(hi, p.smooth) }
+    if (p.pred   != null) { lo = Math.min(lo, p.pred);   hi = Math.max(hi, p.pred)   }
+  }
+  return [isFinite(lo) ? lo : 0, isFinite(hi) ? hi : 0]
+}
+
 const WeightChart = ({
   chartView,
   setChartView,
   activeChartData,
+  totalEntries,
   chartSegments,
   chartMilestones,
   onDeleteSegment,
@@ -68,9 +102,108 @@ const WeightChart = ({
   addMilestoneProps,
   getMilestoneAnalysis,
 }: WeightChartProps) => {
+  const n = activeChartData.length
+
+  // Gesture-controlled window [start, end] into activeChartData
+  const [window, setWindow] = useState<[number, number]>([0, Math.max(0, n - 1)])
+  const [yDomain, setYDomain] = useState<[number | string, number | string]>(['dataMin - 0.5', 'dataMax + 0.5'])
+  const gesture = useRef<GestureState | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const lastPxPerPoint = useRef(1)
+
+  // Reset window when data changes (e.g., view switch)
+  useEffect(() => {
+    setWindow([0, Math.max(0, n - 1)])
+    setYDomain(['dataMin - 0.5', 'dataMax + 0.5'])
+  }, [n, chartView])
+
+  const clampWindow = useCallback((start: number, end: number, total: number): [number, number] => {
+    const size = Math.max(2, end - start)
+    const s = Math.max(0, Math.min(total - 1 - size, Math.round(start)))
+    const e = Math.min(total - 1, s + size)
+    return [s, e]
+  }, [])
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      gesture.current = {
+        type: 'pan',
+        startX: e.touches[0].clientX,
+        startY: e.touches[0].clientY,
+        startWindow: [...window] as [number, number],
+      }
+    } else if (e.touches.length === 2) {
+      const [y0, y1] = getDataYRange(activeChartData, window[0], window[1])
+      gesture.current = {
+        type: 'pinch',
+        startX: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        startY: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+        startDist: getDist(e.touches[0], e.touches[1]),
+        startWindow: [...window] as [number, number],
+        startYRange: [y0, y1],
+      }
+    }
+  }, [window, activeChartData])
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    const g = gesture.current
+    if (!g || !n) return
+
+    if (g.type === 'pan' && e.touches.length === 1) {
+      e.preventDefault()
+      const dx = e.touches[0].clientX - g.startX
+      const windowSize = g.startWindow[1] - g.startWindow[0]
+      const pxPerPoint = lastPxPerPoint.current
+      const shift = Math.round(-dx / pxPerPoint)
+      const [s, en] = clampWindow(g.startWindow[0] + shift, g.startWindow[1] + shift, n)
+      setWindow([s, en])
+
+    } else if (g.type === 'pinch' && e.touches.length === 2) {
+      e.preventDefault()
+      const dist = getDist(e.touches[0], e.touches[1])
+      const dx0 = e.touches[0].clientX - e.touches[1].clientX
+      const dy0 = e.touches[0].clientY - e.touches[1].clientY
+      const isVertical = Math.abs(dy0) > Math.abs(dx0)
+
+      if (!isVertical) {
+        // Horizontal pinch → zoom X
+        const ratio = (g.startDist ?? dist) / Math.max(dist, 1)
+        const cx = (g.startWindow[0] + g.startWindow[1]) / 2
+        const halfSpan = Math.max(1, Math.round(((g.startWindow[1] - g.startWindow[0]) / 2) * ratio))
+        const [s, en] = clampWindow(Math.round(cx - halfSpan), Math.round(cx + halfSpan), n)
+        setWindow([s, en])
+      } else {
+        // Vertical pinch → zoom Y
+        const ratio = (g.startDist ?? dist) / Math.max(dist, 1)
+        const [y0, y1] = g.startYRange ?? getDataYRange(activeChartData, window[0], window[1])
+        const mid = (y0 + y1) / 2
+        const halfSpan = Math.max(0.3, ((y1 - y0) / 2) * ratio)
+        setYDomain([+(mid - halfSpan).toFixed(1), +(mid + halfSpan).toFixed(1)])
+      }
+    }
+  }, [n, clampWindow, activeChartData, window])
+
+  const onTouchEnd = useCallback(() => {
+    gesture.current = null
+  }, [])
+
+  // Track px-per-point for pan calculation
+  useEffect(() => {
+    if (!containerRef.current) return
+    const obs = new ResizeObserver(entries => {
+      const width = entries[0]?.contentRect.width ?? 300
+      const pts = window[1] - window[0] + 1
+      lastPxPerPoint.current = pts > 1 ? width / (pts - 1) : width
+    })
+    obs.observe(containerRef.current)
+    return () => obs.disconnect()
+  }, [window])
+
+  const visibleData = n > 0 ? activeChartData.slice(window[0], window[1] + 1) : activeChartData
+
   return (
     <div className="card glass" style={{ padding: '1.2rem' }}>
-      {/* Header: title + Day/Week/Month toggle */}
+      {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.7rem' }}>
         <h3 style={{ margin: 0, fontSize: '1rem' }}>Progress</h3>
         <div style={{ display: 'flex', gap: '0.15rem', background: 'rgba(255,255,255,0.05)', padding: '0.15rem', borderRadius: '0.6rem' }}>
@@ -100,16 +233,27 @@ const WeightChart = ({
             <span style={{ display: 'inline-block', width: 16, height: 0, borderTop: '2px dashed var(--primary)', opacity: 0.5 }} /> Forecast
           </span>
         )}
+        {n > 0 && chartView === 'day' && (
+          <span style={{ marginLeft: 'auto', fontSize: '0.62rem', color: 'var(--text-muted)', opacity: 0.6 }}>
+            slide · pinch
+          </span>
+        )}
       </div>
 
-      {activeChartData.length < 2 ? (
+      {n < 2 ? (
         <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem', fontSize: '0.85rem' }}>
           Log at least 2 entries to see the chart.
         </div>
       ) : (
-        <div style={{ height: chartView === 'day' ? '260px' : '220px' }}>
+        <div
+          ref={containerRef}
+          style={{ height: chartView === 'day' ? '260px' : '220px', touchAction: 'none' }}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={activeChartData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
+            <ComposedChart data={visibleData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="predGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%"  stopColor="var(--primary)" stopOpacity={0.12} />
@@ -121,20 +265,20 @@ const WeightChart = ({
                 </linearGradient>
               </defs>
 
-              {/* Plan segments (day view only) */}
-              {chartView === 'day' && chartSegments.map(seg => (
+              {/* Segments — auto-colored neon green→blue */}
+              {chartView === 'day' && chartSegments.map((seg, idx) => (
                 <ReferenceArea
                   key={seg.id}
                   x1={format(new Date(seg.startDate), 'MMM d')}
                   x2={format(new Date(seg.endDate), 'MMM d')}
-                  fill={seg.color} fillOpacity={0.1}
-                  stroke={seg.color} strokeOpacity={0.3} strokeWidth={1}
+                  fill={segmentColor(idx)} fillOpacity={0.08}
+                  stroke={segmentColor(idx)} strokeOpacity={0.25} strokeWidth={1}
                 />
               ))}
 
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
               <XAxis dataKey="label" stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} interval="preserveStartEnd" />
-              <YAxis stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} domain={['dataMin - 1', 'dataMax + 1']} tickFormatter={(v: number) => `${v}`} />
+              <YAxis stroke="var(--text-muted)" fontSize={8} tickLine={false} axisLine={false} domain={yDomain} tickFormatter={(v: number) => `${v}`} />
 
               <Tooltip
                 content={({ active, payload, label }) => {
@@ -155,7 +299,7 @@ const WeightChart = ({
                       {items.map((item, i) => {
                         const v = typeof item.value === 'number' ? item.value : null
                         if (v == null) return null
-                        const name = item.dataKey === 'weight' ? 'Actual' : item.dataKey === 'smooth' ? 'Trend' : item.dataKey === 'pred' ? 'Forecast' : String(item.dataKey)
+                        const name = item.dataKey === 'weight' ? 'Actual' : item.dataKey === 'smooth' ? 'Trend' : 'Forecast'
                         return <div key={i} style={{ color: 'var(--primary)' }}>{name}: {v} kg</div>
                       })}
                     </div>
@@ -196,17 +340,6 @@ const WeightChart = ({
                   label={{ value: ms.label, fill: '#F59E0B', fontSize: 8, position: 'insideTopLeft' }}
                 />
               ))}
-
-              {/* Brush for zoom/scroll (day view, >10 points) */}
-              {chartView === 'day' && activeChartData.length > 10 && (
-                <Brush
-                  dataKey="label" height={18}
-                  stroke="rgba(100,255,218,0.3)" fill="rgba(0,0,0,0.2)"
-                  travellerWidth={6}
-                  startIndex={Math.max(0, activeChartData.length - 60)}
-                  endIndex={activeChartData.length - 1}
-                />
-              )}
             </ComposedChart>
           </ResponsiveContainer>
         </div>
@@ -221,9 +354,14 @@ const WeightChart = ({
               <Plus size={13} /> Add
             </button>
           </div>
-          {chartSegments.map(seg => (
+          {chartSegments.length === 0 && !addSegmentProps.show && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', opacity: 0.5, padding: '0.3rem 0' }}>
+              No segments yet — add one to highlight date ranges.
+            </div>
+          )}
+          {chartSegments.map((seg, idx) => (
             <div key={seg.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-              <span style={{ width: 10, height: 10, borderRadius: '2px', background: seg.color, flexShrink: 0 }} />
+              <span style={{ width: 10, height: 10, borderRadius: '2px', background: segmentColor(idx), flexShrink: 0 }} />
               <span style={{ flex: 1, fontSize: '0.78rem' }}>{seg.label}</span>
               <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{format(new Date(seg.startDate), 'MMM d')} – {format(new Date(seg.endDate), 'MMM d')}</span>
               <button onClick={() => onDeleteSegment(seg.id)} style={{ background: 'none', border: 'none', color: 'var(--accent-pink)', cursor: 'pointer', padding: '0.1rem', opacity: 0.6 }}><Trash2 size={12} /></button>
@@ -238,11 +376,6 @@ const WeightChart = ({
                   style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
                 <input type="date" value={addSegmentProps.end} onChange={e => addSegmentProps.onEndChange(e.target.value)} className="glass"
                   style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
-              </div>
-              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                {PALETTE.map(c => (
-                  <button key={c} onClick={() => addSegmentProps.onColorChange(c)} style={{ width: 22, height: 22, borderRadius: '50%', background: c, border: addSegmentProps.color === c ? '2px solid white' : '2px solid transparent', cursor: 'pointer', padding: 0 }} />
-                ))}
               </div>
               <button onClick={addSegmentProps.onAdd} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
                 <Plus size={14} /> Add Segment
@@ -261,6 +394,11 @@ const WeightChart = ({
               <Plus size={13} /> Add
             </button>
           </div>
+          {chartMilestones.length === 0 && !addMilestoneProps.show && (
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', opacity: 0.5, padding: '0.3rem 0' }}>
+              No milestones yet — add one to track a goal or event.
+            </div>
+          )}
           {chartMilestones.map(ms => {
             const analysis = getMilestoneAnalysis(ms)
             return (
@@ -290,12 +428,12 @@ const WeightChart = ({
           })}
           {addMilestoneProps.show && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.6rem' }}>
-              <input placeholder="Label (e.g. Event / Goal)" value={addMilestoneProps.label} onChange={e => addMilestoneProps.onLabelChange(e.target.value)} className="glass"
+              <input placeholder="Label (e.g. Shavuot)" value={addMilestoneProps.label} onChange={e => addMilestoneProps.onLabelChange(e.target.value)} className="glass"
                 style={{ padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
               <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <input type="date" value={addMilestoneProps.date} onChange={e => addMilestoneProps.onDateChange(e.target.value)} className="glass"
                   style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
-                <input type="number" placeholder="Target kg (opt.)" value={addMilestoneProps.target} onChange={e => addMilestoneProps.onTargetChange(e.target.value)} step="0.1" className="glass"
+                <input type="number" placeholder="Target weight (kg)" value={addMilestoneProps.target} onChange={e => addMilestoneProps.onTargetChange(e.target.value)} step="0.1" className="glass"
                   style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '0.6rem', border: 'var(--border-glass)', color: 'var(--text-main)', fontSize: '0.8rem' }} />
               </div>
               <button onClick={addMilestoneProps.onAdd} className="btn-primary" style={{ width: '100%', justifyContent: 'center' }}>

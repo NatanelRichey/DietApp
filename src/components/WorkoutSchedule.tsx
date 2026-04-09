@@ -60,7 +60,7 @@ const WorkoutSchedule = ({ user, data, setData, loading }: WorkoutScheduleProps)
           <Dumbbell size={18} color="var(--primary)" /> Weekly Schedule
         </h3>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
           {DAY_LABELS.map((label, day) => {
             const d = schedule[day] ?? { gym: false, cardio: false, walk: false, notes: '' }
             const isActive = d.gym || d.cardio || d.walk
@@ -68,24 +68,24 @@ const WorkoutSchedule = ({ user, data, setData, loading }: WorkoutScheduleProps)
               <div
                 key={day}
                 style={{
-                  borderRadius: '1rem',
+                  borderRadius: '0.75rem',
                   background: isActive ? 'rgba(100,255,218,0.05)' : 'rgba(255,255,255,0.03)',
                   border: isActive ? '1px solid rgba(100,255,218,0.12)' : '1px solid rgba(255,255,255,0.06)',
                   overflow: 'hidden',
                   transition: 'all 0.15s ease',
                 }}
               >
-                {/* Top row: day label + activity toggles */}
+                {/* Single row: day label + toggles + notes */}
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: '3.2rem 1fr 1fr 1fr',
-                  gap: '0.5rem',
-                  padding: '0.75rem 0.85rem 0.5rem',
+                  gridTemplateColumns: '2.4rem 1fr 1fr 1fr 1fr',
+                  gap: '0.3rem',
+                  padding: '0.35rem 0.6rem',
                   alignItems: 'center',
                 }}>
                   <div style={{
                     fontWeight: 800,
-                    fontSize: '0.88rem',
+                    fontSize: '0.78rem',
                     color: isActive ? 'var(--text-main)' : 'var(--text-muted)',
                   }}>
                     {label}
@@ -97,12 +97,11 @@ const WorkoutSchedule = ({ user, data, setData, loading }: WorkoutScheduleProps)
                       onClick={() => updateDay(day, { [key]: !d[key] })}
                       style={{
                         display: 'flex',
-                        flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '0.2rem',
-                        padding: '0.55rem 0.25rem',
-                        borderRadius: '0.75rem',
+                        gap: '0.25rem',
+                        padding: '0.3rem 0.2rem',
+                        borderRadius: '0.5rem',
                         border: 'none',
                         background: d[key]
                           ? 'rgba(100,255,218,0.18)'
@@ -112,35 +111,29 @@ const WorkoutSchedule = ({ user, data, setData, loading }: WorkoutScheduleProps)
                         transition: 'all 0.15s ease',
                         userSelect: 'none',
                         WebkitTapHighlightColor: 'transparent',
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
                       }}
                     >
-                      <Icon size={15} />
-                      <span style={{ fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.04em' }}>
-                        {d[key] ? 'ON' : 'OFF'}
-                      </span>
-                      <span style={{ fontSize: '0.58rem', color: 'inherit', opacity: 0.7 }}>
-                        {actLabel}
-                      </span>
+                      <Icon size={12} />
+                      {actLabel}
                     </button>
                   ))}
-                </div>
 
-                {/* Bottom row: full-width notes */}
-                <div style={{ padding: '0 0.85rem 0.75rem' }}>
                   <input
                     type="text"
                     value={d.notes}
                     onChange={e => updateDay(day, { notes: e.target.value })}
-                    placeholder={`${label} notes...`}
+                    placeholder="notes"
                     style={{
-                      width: '100%',
                       background: 'rgba(255,255,255,0.04)',
                       border: '1px solid rgba(255,255,255,0.08)',
-                      borderRadius: '0.6rem',
-                      padding: '0.45rem 0.7rem',
+                      borderRadius: '0.4rem',
+                      padding: '0.28rem 0.5rem',
                       color: 'var(--text-main)',
-                      fontSize: '0.8rem',
+                      fontSize: '0.72rem',
                       fontFamily: 'inherit',
+                      width: '100%',
                       boxSizing: 'border-box',
                     }}
                   />

@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from 'react'
-import { LayoutDashboard, Scale, Utensils, Files, Clock, Calendar, Dumbbell } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { LayoutDashboard, Scale, Utensils, Files, Clock, Calendar, Dumbbell, Bug } from 'lucide-react'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
-import { toPng } from 'html-to-image'
 import Dashboard from './components/dashboard'
 import WeightTracker from './components/weight'
 import MealPlanner from './components/planner'
@@ -25,10 +24,6 @@ const App = () => {
   const { data, setData, loading, syncStatus } = useDatabase(user, DEFAULT_DATA)
 
   const [isBugReporterOpen, setIsBugReporterOpen] = useState(false)
-  // undefined = pre-capture in-flight, null = capture failed, string = ready
-  const [pendingScreenshot, setPendingScreenshot] = useState<string | null | undefined>(undefined)
-
-  const preCaptureRef = useRef<Promise<string | null> | null>(null)
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000)
@@ -39,20 +34,6 @@ const App = () => {
     setUser(username)
     sessionStorage.setItem('diet-app-user', username)
   }
-
-  const handleLogoTap = useDoubleTap({
-    onFirstTap: () => {
-      preCaptureRef.current = toPng(document.body, { quality: 0.5, pixelRatio: 0.6, skipFonts: true }).catch(() => null)
-    },
-    onDoubleTap: () => {
-      setPendingScreenshot(undefined) // undefined = still capturing (shows spinner in BugReporter)
-      setIsBugReporterOpen(true)
-      preCaptureRef.current
-        ?.then(dataUrl => setPendingScreenshot(dataUrl ?? null)) // null = failed
-        .catch(() => setPendingScreenshot(null))
-      preCaptureRef.current = null
-    },
-  })
 
   const handleClockTap = useDoubleTap({
     onDoubleTap: () => setPage('bugadmin'),
@@ -95,17 +76,14 @@ const App = () => {
       {/* Header */}
       <header style={{
         display: 'grid',
-        gridTemplateColumns: '1fr auto auto auto',
+        gridTemplateColumns: '1fr auto auto auto auto',
         alignItems: 'center',
         padding: '0.7rem 1rem 0.4rem',
         gap: '0.8rem',
         flexShrink: 0
       }}>
-        {/* Left: DietApp + date — double-tap opens bug reporter */}
-        <div
-          onClick={handleLogoTap}
-          style={{ cursor: 'pointer', userSelect: 'none', WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
-        >
+        {/* Left: DietApp + date */}
+        <div>
           <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }} className="text-gradient">DietApp</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
             <Calendar size={11} />
@@ -113,7 +91,7 @@ const App = () => {
           </div>
         </div>
 
-        {/* Cloud sync status dot — always rendered to keep grid stable (4 columns) */}
+        {/* Cloud sync status dot */}
         <div
           title={syncStatus === 'saving' ? 'Saving…' : syncStatus === 'saved' ? 'Saved to cloud' : syncStatus === 'error' ? 'Cloud save failed — data is safe locally' : ''}
           style={{
@@ -123,6 +101,19 @@ const App = () => {
             transition: 'opacity 0.3s ease',
           }}
         />
+
+        {/* Bug report button */}
+        <button
+          onClick={() => setIsBugReporterOpen(true)}
+          title="Report a bug"
+          style={{
+            background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', padding: '0.2rem',
+            WebkitTapHighlightColor: 'transparent',
+          }}
+        >
+          <Bug size={18} />
+        </button>
 
         {/* Clock — double-tap opens bug admin page */}
         <div
@@ -228,9 +219,8 @@ const App = () => {
 
       <BugReporter
         isOpen={isBugReporterOpen}
-        onClose={() => { setIsBugReporterOpen(false); setPendingScreenshot(undefined) }}
+        onClose={() => setIsBugReporterOpen(false)}
         user={user || 'Guest'}
-        initialScreenshot={pendingScreenshot}
       />
     </div>
   )

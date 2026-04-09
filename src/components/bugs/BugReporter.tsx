@@ -1,20 +1,16 @@
 import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Send, Camera, AlertCircle, Loader2, Upload, FileWarning } from 'lucide-react'
-import { toPng } from 'html-to-image'
+import { X, Send, AlertCircle, Loader2, Upload, FileWarning } from 'lucide-react'
 
 interface BugReporterProps {
   isOpen: boolean
   onClose: () => void
   user: string
-  // undefined = pre-capture in-flight (show spinner), null = failed, string = ready
-  initialScreenshot?: string | null | undefined
 }
 
 interface Draft {
   id: string
   report: string
-  screenshot: string
   deviceInfo: Record<string, unknown>
   timestamp: string
   user: string
@@ -37,7 +33,7 @@ const submitBug = async (draft: Omit<Draft, 'id'> & { id?: string }) => {
     body: JSON.stringify({
       report: draft.report,
       deviceInfo: draft.deviceInfo,
-      screenshot: draft.screenshot,
+      screenshot: '',
       user: draft.user,
       timestamp: draft.timestamp,
     }),
@@ -48,55 +44,22 @@ const submitBug = async (draft: Omit<Draft, 'id'> & { id?: string }) => {
   }
 }
 
-const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initialScreenshot }) => {
+const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user }) => {
   const [report, setReport] = useState('')
-  const [screenshot, setScreenshot] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [capturing, setCapturing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [uploadingDraftId, setUploadingDraftId] = useState<string | null>(null)
 
   const refreshDrafts = () => setDrafts(loadDrafts())
 
-  const captureScreenshot = async () => {
-    setCapturing(true)
-    setError(null)
-    try {
-      await new Promise(r => setTimeout(r, 300))
-      const dataUrl = await toPng(document.body, { quality: 0.6, pixelRatio: 0.75, skipFonts: true })
-      setScreenshot(dataUrl)
-    } catch {
-      setError('Failed to capture screenshot.')
-    } finally {
-      setCapturing(false)
-    }
-  }
-
   useEffect(() => {
     if (isOpen) {
       setReport('')
       setError(null)
-      setScreenshot(null)
       refreshDrafts()
-      // Don't start our own toPng — App.tsx always provides initialScreenshot.
-      // undefined means capture in-flight, so show spinner.
-      if (typeof initialScreenshot === 'string') {
-        setScreenshot(initialScreenshot)
-        setCapturing(false)
-      } else {
-        setCapturing(true) // wait for App.tsx to deliver; null means it failed
-        if (initialScreenshot === null) setCapturing(false)
-      }
     }
-  }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Pick up screenshot once App.tsx pre-capture resolves (undefined → string | null)
-  useEffect(() => {
-    if (!isOpen || initialScreenshot === undefined) return
-    setScreenshot(initialScreenshot)
-    setCapturing(false)
-  }, [initialScreenshot, isOpen])
+  }, [isOpen])
 
   const saveDraft = (draftData: Omit<Draft, 'id'>) => {
     const existing = loadDrafts()
@@ -110,7 +73,6 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initia
     refreshDrafts()
   }
 
-  // Upload all pending drafts, silently
   const flushDrafts = async () => {
     const pending = loadDrafts()
     for (const draft of pending) {
@@ -139,17 +101,12 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initia
     }
     const timestamp = new Date().toISOString()
 
-    // Cap screenshot at 800 KB base64 to stay well within Vercel's 4.5 MB body limit
-    const MAX_SCREENSHOT_B64 = 800_000
-    const screenshotPayload = screenshot && screenshot.length > MAX_SCREENSHOT_B64 ? '' : (screenshot ?? '')
-
     try {
-      await submitBug({ report, deviceInfo, screenshot: screenshotPayload, user, timestamp })
-      await flushDrafts() // upload any queued drafts on success
+      await submitBug({ report, deviceInfo, user, timestamp })
+      await flushDrafts()
       onClose()
     } catch {
-      // Save as draft and show feedback
-      saveDraft({ report, deviceInfo, screenshot: screenshotPayload, user, timestamp })
+      saveDraft({ report, deviceInfo, user, timestamp })
       setError('No connection — saved as draft. It will upload next time.')
     } finally {
       setLoading(false)
@@ -249,49 +206,16 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initia
                 </label>
                 <textarea
                   required
+                  autoFocus
                   value={report}
                   onChange={(e) => setReport(e.target.value)}
                   placeholder="Tell us what's not working correctly..."
                   style={{
-                    width: '100%', minHeight: '100px',
+                    width: '100%', minHeight: '120px',
                     background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
                     borderRadius: '0.75rem', padding: '0.75rem', color: 'white', fontSize: '1rem', resize: 'none',
                   }}
                 />
-              </div>
-
-              <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                  <label style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Captured Scene</label>
-                  <button
-                    type="button"
-                    onClick={captureScreenshot}
-                    disabled={capturing}
-                    style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.8rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                  >
-                    <Camera size={14} /> {capturing ? 'Capturing...' : 'Retake'}
-                  </button>
-                </div>
-                <div style={{
-                  width: '100%', aspectRatio: '16/9', background: 'rgba(0,0,0,0.2)',
-                  borderRadius: '0.75rem', overflow: 'hidden',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                }}>
-                  {capturing ? (
-                    <div style={{ textAlign: 'center' }}>
-                      <Loader2 style={{ margin: '0 auto 0.5rem' }} />
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Capturing viewport...</p>
-                    </div>
-                  ) : screenshot ? (
-                    <img src={screenshot} alt="Captured" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                  ) : (
-                    <div style={{ textAlign: 'center', color: '#ff4b4b' }}>
-                      <Camera size={24} style={{ margin: '0 auto 0.5rem' }} />
-                      <p style={{ fontSize: '0.8rem' }}>Capture failed.</p>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {error && (
@@ -301,7 +225,7 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initia
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '1rem' }}>
                 <button
                   type="button"
                   onClick={onClose}
@@ -325,7 +249,7 @@ const BugReporter: React.FC<BugReporterProps> = ({ isOpen, onClose, user, initia
                   }}
                 >
                   {loading ? <Loader2 size={18} /> : <Send size={18} />}
-                  {capturing ? 'Submit (capturing…)' : 'Submit Report'}
+                  {loading ? 'Sending…' : 'Submit Report'}
                 </button>
               </div>
             </form>

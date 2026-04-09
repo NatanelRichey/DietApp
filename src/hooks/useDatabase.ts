@@ -74,8 +74,12 @@ const useDatabase = (user: string | null, initialData: UserData) => {
 
   const [loading, setLoading] = useState(true)
   const [syncStatus, setSyncStatus] = useState<CloudSyncStatus>('idle')
-  const pendingSaveRef = useRef<UserData | null>(null)
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingSaveRef   = useRef<UserData | null>(null)
+  const saveTimeoutRef   = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Guard: block cloud saves until the initial cloud fetch is complete.
+  // Without this, seed-effect setData calls race against the cloud fetch and
+  // can overwrite cloud data with partial localStorage data.
+  const cloudReadyRef = useRef(false)
 
   const saveToCloud = useCallback(async (updatedData: UserData) => {
     if (!user) return
@@ -89,7 +93,6 @@ const useDatabase = (user: string | null, initialData: UserData) => {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setSyncStatus('saved')
-      // Reset to idle after 2s
       setTimeout(() => setSyncStatus(s => s === 'saved' ? 'idle' : s), 2000)
     } catch (error) {
       console.error('Cloud save error:', error)
@@ -99,7 +102,7 @@ const useDatabase = (user: string | null, initialData: UserData) => {
 
   // Flush pending cloud save immediately (called on visibility change / beforeunload)
   const flushSave = useCallback(() => {
-    if (pendingSaveRef.current) {
+    if (pendingSaveRef.current && cloudReadyRef.current) {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
       saveToCloud(pendingSaveRef.current)
     }
@@ -117,21 +120,28 @@ const useDatabase = (user: string | null, initialData: UserData) => {
     }
   }, [flushSave])
 
-  // Fetch from cloud — syncs on login; localStorage already provided instant data
+  // Fetch from cloud on login; localStorage already provided instant data
   useEffect(() => {
     if (!user) {
-      // Always reset to default on logout so the next user starts clean
       setData(initialDataRef.current)
       setLoading(false)
+      cloudReadyRef.current = false
       return
     }
 
+    // Block cloud saves until this fetch completes
+    cloudReadyRef.current = false
+
+    // Cancel any debounced saves from the previous state (e.g. seed effects
+    // that fired before we got authoritative cloud data)
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+    pendingSaveRef.current = null
+
     let cancelled = false
 
-    // Load this user's localStorage immediately — never show another user's data
     const local = loadLocal(user)
     setData(local ? { ...initialDataRef.current, ...local } : initialDataRef.current)
-    setLoading(!local) // only show spinner if we have nothing to show yet
+    setLoading(!local)
 
     const fetchData = async () => {
       if (!local) setLoading(true)
@@ -140,25 +150,32 @@ const useDatabase = (user: string | null, initialData: UserData) => {
         if (!cancelled && response.ok) {
           const cloudData = await response.json()
           if (cloudData && typeof cloudData === 'object' && !cloudData.error) {
-            // Re-read localStorage fresh (may have changed since fetch started)
             const currentLocal = loadLocal(user)
             const merged = currentLocal
               ? mergeUserData(currentLocal, cloudData)
               : { ...initialDataRef.current, ...cloudData }
             if (!cancelled) {
+              // Clear any debounced saves queued during the fetch window
+              // (seed effects, etc.) — cloud data is the authority
+              if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+              pendingSaveRef.current = null
+
               setData(merged)
               saveLocal(user, merged)
-              // Push merged result to cloud so local-only data gets backed up
-              saveToCloud(merged)
+              // Cloud already has its data; only push back if local had extra
+              // data not in cloud (detected by merge differing from cloud).
+              // Simplified: just allow cloud saves from user actions from here.
             }
           }
-          // If cloudData is null, keep localStorage data (already set above)
         }
       } catch (error) {
         console.error('Cloud fetch error:', error)
-        // Keep localStorage data — already loaded above
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+          // Unblock cloud saves now that we have authoritative data
+          cloudReadyRef.current = true
+        }
       }
     }
 
@@ -168,10 +185,13 @@ const useDatabase = (user: string | null, initialData: UserData) => {
 
   const updateData = useCallback((newData: UserData) => {
     setData(newData)
-    // Save to localStorage immediately — survives logout, app close, API failures
     if (user) saveLocal(user, newData)
+
+    // Don't queue cloud saves until the initial cloud fetch is done —
+    // prevents seed effects from overwriting cloud data with partial local state
+    if (!cloudReadyRef.current) return
+
     pendingSaveRef.current = newData
-    // Also debounce cloud save
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
     saveTimeoutRef.current = setTimeout(() => {
       saveToCloud(newData)
